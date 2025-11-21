@@ -1,5 +1,5 @@
 """
-URL configuration for advisory project.
+URL configuration for potato_scraper_backend project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.2/topics/http/urls/
@@ -15,9 +15,41 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
+from drf_yasg import openapi
+from drf_yasg.views import get_schema_view
+from rest_framework import permissions
 
-urlpatterns = [
-    path("admin/", admin.site.urls),
-]
+schema_view = get_schema_view(
+    openapi.Info(
+        title="Cold Storage Advisory API",
+        default_version="v1",
+        description="API documentation for the Cold Storage Advisory project",
+    ),
+    public=True,
+    permission_classes=[permissions.AllowAny],
+)
+
+admin.site.site_header = "Cold Storage Advisory Admin"
+admin.site.site_title = "Cold Storage Advisory Admin"
+admin.site.index_title = "Cold Storage Advisory Admin"
+
+urlpatterns = (
+    [
+        path("admin/", admin.site.urls),
+        path(
+            "swagger/",
+            schema_view.with_ui("swagger", cache_timeout=0),
+            name="schema-swagger-ui",
+        ),
+        path(
+            "redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"
+        ),
+        path("auth/", include("accounts.urls"), name="accounts"),
+    ]
+    + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+)
