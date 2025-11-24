@@ -22,7 +22,7 @@ def _send_email(subject, template, context, recipient):
 def send_welcome_email_task(self, email, full_name):
     try:
         _send_email(
-            "Welcome to Potato Bazaar News Scraper",
+            "Welcome to Cold Storage Advisory",
             "emails/welcome_email.html",
             {"full_name": full_name},
             email,
