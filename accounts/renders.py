@@ -20,17 +20,24 @@ class UserRenderer(renderers.JSONRenderer):
                 response["status"] = False
 
                 if isinstance(data, dict):
-                    response["message"] = (
+                    message = (
                         data.get("message")
                         or data.get("detail")
                         or data.get("error")
                         or data.get("non_field_errors")
-                        or data.get("website")
-                        or data.get("rounds")
-                        or data.get("resumes")
-                        or data.get("media_upload_error")
-                        or "Something went wrong"
                     )
+
+                    # If no standard error key found, try to extract first field error
+                    if not message:
+                        for field, errors in data.items():
+                            if isinstance(errors, list) and errors:
+                                message = errors[0]
+                                break
+                            elif isinstance(errors, str):
+                                message = errors
+                                break
+                    
+                    response["message"] = message or "Something went wrong"
                 else:
                     response["message"] = "Something went wrong"
 

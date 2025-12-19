@@ -1,89 +1,166 @@
-from rest_framework import status
-from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
 
-from usecase_engine.constants import USE_CASES
-from usecase_engine.knowledge_base import QUESTION_BANK
+from usecase_engine.models import UserInput
+from usecase_engine.serializers import (
+    UserInputReadSerializer,
+    UserInputWriteSerializer,
+)
+from accounts.renders import UserRenderer
 
 
-class UseCaseListView(APIView):
+class UserInputAPIView(APIView):
+    """
+    Handles:
+    - GET: list all user inputs
+    - POST: create a new user input
+    """
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
+            queryset = UserInput.objects.filter(user=request.user)
+            serializer = UserInputReadSerializer(queryset, many=True)
             return Response(
                 {
-                    "message": "Usecase list fetched successfully",
-                    "data": USE_CASES,
+                    "data": serializer.data,
+                    "message": "User inputs retrieved successfully"
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_200_OK
             )
-
         except Exception as e:
             return Response(
-                {"message": f"Unexpected error fetching usecases: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    def post(self, request):
+        user_choice = request.data.get("user_choice")
+        intake_data = request.data.get("intake_data")
 
-class WizardQuestionsView(APIView):
+        if not user_choice:
+            return Response(
+                {"error": "user_choice field is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-    def get(self, request):
+        if intake_data is None:
+            return Response(
+                {"error": "intake_data field is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         try:
-            
-            usecase = request.query_params.get("usecase")
-            
-            if not usecase:
-                return Response(
-                    {"message": "Query parameter 'usecase' is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            
-            valid_usecases = [uc["id"] for uc in USE_CASES]            
-
-            if usecase not in valid_usecases:
+            serializer = UserInputWriteSerializer(
+                data={
+                    "user_choice": user_choice,
+                    "intake_data": intake_data,
+                },
+                context={"request": request}
+            )
+            if serializer.is_valid():
+                serializer.save()
                 return Response(
                     {
-                        "message": (
-                            f"Invalid usecase '{usecase}'. "
-                            f"Valid options: {', '.join(valid_usecases)}"
-                        )
+                        "data": serializer.data,
+                        "message": "Intake created successfully"
                     },
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_201_CREATED
                 )
-
-            general_context = QUESTION_BANK["general_context"]            
-            usecase_data = QUESTION_BANK["usecase_sections"].get(usecase)
-
-            if not usecase_data:
-                return Response(
-                    {"message": f"No question-set found for usecase '{usecase}'"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            usecase_sections = usecase_data.get("sections", [])
-
-            return Response(
-                {
-                    "message": "Wizard questions fetched successfully",
-                    "data": {
-                        "usecase": usecase,
-                        "general": {
-                            "title": general_context.get("title", ""),
-                            "description": general_context.get("description", ""),
-                            "questions": general_context.get("questions", []),
-                        },
-                        "usecase_specific": {
-                            "title": usecase_data.get("title", ""),
-                            "description": usecase_data.get("description", ""),
-                            "sections": usecase_sections,
-                        },
-                    },
-                },
-                status=status.HTTP_200_OK,
-            )
-
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response(
-                {"message": f"Unexpected server error: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class UserInputDetailAPIView(APIView):
+    """
+    Handles:
+    - GET: retrieve one input
+    - PATCH: update input
+    - DELETE: delete input
+    """
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, pk, user):
+        try:
+            return UserInput.objects.get(pk=pk, user=user)
+        except UserInput.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        try:
+            intake = self.get_object(pk, request.user)
+            if not intake:
+                return Response(
+                    {"error": "Intake not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            serializer = UserInputReadSerializer(intake)
+            return Response(
+                {
+                    "data": serializer.data,
+                    "message": "Intake retrieved successfully"
+                },
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def patch(self, request, pk):
+        try:
+            intake = self.get_object(pk, request.user)
+            if not intake:
+                return Response(
+                    {"error": "Intake not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            serializer = UserInputWriteSerializer(
+                intake,
+                data=request.data,
+                partial=True,
+                context={"request": request},
+            )
+            if serializer.is_valid():
+                serializer.save()
+                return Response(
+                    {
+                        "data": serializer.data,
+                        "message": "Intake updated successfully"
+                    },
+                    status=status.HTTP_200_OK
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def delete(self, request, pk):
+        try:
+            intake = self.get_object(pk, request.user)
+            if not intake:
+                return Response(
+                    {"error": "Intake not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            intake.delete()
+            return Response(
+                {"message": "Intake deleted successfully"},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

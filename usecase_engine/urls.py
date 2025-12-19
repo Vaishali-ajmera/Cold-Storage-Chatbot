@@ -1,8 +1,7 @@
 from django.urls import path
-
-from usecase_engine.views import UseCaseListView, WizardQuestionsView
+from usecase_engine.views import UserInputAPIView, UserInputDetailAPIView
 
 urlpatterns = [
-    path("usecases/", UseCaseListView.as_view(), name="usecase-list"),
-    path("wizard/questions/", WizardQuestionsView.as_view(), name="wizard-questions"),
+    path('intake/', UserInputAPIView.as_view(), name='intake-list'),
+    path('intake/<int:pk>/', UserInputDetailAPIView.as_view(), name='intake-detail'),
 ]

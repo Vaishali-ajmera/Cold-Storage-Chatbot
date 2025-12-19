@@ -32,7 +32,7 @@ ALLOWED_HOSTS = []
 
 
 # Application definition
-LOCAL_APPS = ["accounts"]
+LOCAL_APPS = ["accounts", "usecase_engine"]
 
 THIRD_PARTY_APPS = [
     "rest_framework",
