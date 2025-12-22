@@ -1,8 +1,11 @@
+import os
+import random
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from rest_framework import status
 
 from usecase_engine.models import UserInput
 from usecase_engine.serializers import (
@@ -10,6 +13,8 @@ from usecase_engine.serializers import (
     UserInputWriteSerializer,
 )
 from accounts.renders import UserRenderer
+from usecase_engine.constants import SUGGESTED_QUESTIONS_DATA, TYPE_BUILD, TYPE_EXISTING, SYSTEM_PROMPT
+
 
 
 class UserInputAPIView(APIView):
@@ -164,3 +169,34 @@ class UserInputDetailAPIView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+
+
+class SuggestedRelatedAPIView(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_type = request.query_params.get('type')
+
+        if user_type not in SUGGESTED_QUESTIONS_DATA:
+            return Response(
+                {"error": f"Invalid type. Use '{TYPE_BUILD}' or '{TYPE_EXISTING}'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        data = SUGGESTED_QUESTIONS_DATA[user_type]
+        
+        random_questions = random.sample(data["questions"], 3)
+
+        return Response({
+            "message": "Suggested questions retrieved successfully",
+            "data": {
+                "user_type": user_type,
+                "label": data["label"],
+                "suggested_questions": random_questions
+            }
+        }, status=status.HTTP_200_OK)
+    
+
