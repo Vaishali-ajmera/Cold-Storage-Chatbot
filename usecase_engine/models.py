@@ -6,20 +6,15 @@ from usecase_engine.constants import USER_CHOICES
 
 class UserInput(models.Model):
     user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="cold_storage_intakes"
+        User, on_delete=models.CASCADE, related_name="cold_storage_intakes"
     )
 
-    user_choice = models.CharField(
-        max_length=30,
-        choices=USER_CHOICES
-    )
+    user_choice = models.CharField(max_length=30, choices=USER_CHOICES)
 
     intake_data = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Initial user-provided inputs like location, capacity, budget, etc."
+        help_text="Initial user-provided inputs like location, capacity, budget, etc.",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

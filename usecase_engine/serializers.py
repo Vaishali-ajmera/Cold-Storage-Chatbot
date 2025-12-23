@@ -1,21 +1,20 @@
 from rest_framework import serializers
-from usecase_engine.models import UserInput
+
 from usecase_engine.constants import USER_CHOICES
+from usecase_engine.models import UserInput
 
 
 class UserInputBaseSerializer(serializers.ModelSerializer):
     user_choice = serializers.ChoiceField(
         choices=USER_CHOICES,
         error_messages={
-            'invalid_choice': 'Invalid selection. Please choose either build or existing.'
-        }
+            "invalid_choice": "Invalid selection. Please choose either build or existing."
+        },
     )
 
     def validate_intake_data(self, value):
         if not isinstance(value, dict):
-            raise serializers.ValidationError(
-                "Intake_data must be a valid JSON object"
-            )
+            raise serializers.ValidationError("Intake_data must be a valid JSON object")
         return value
 
 
@@ -23,8 +22,7 @@ class UserInputReadSerializer(UserInputBaseSerializer):
     """Serializer for GET responses"""
 
     user_choice_display = serializers.CharField(
-        source="get_user_choice_display",
-        read_only=True
+        source="get_user_choice_display", read_only=True
     )
 
     class Meta:
@@ -48,6 +46,5 @@ class UserInputWriteSerializer(UserInputBaseSerializer):
 
     def create(self, validated_data):
         return UserInput.objects.create(
-            user=self.context["request"].user,
-            **validated_data
+            user=self.context["request"].user, **validated_data
         )

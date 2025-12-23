@@ -36,7 +36,7 @@ class UserRenderer(renderers.JSONRenderer):
                             elif isinstance(errors, str):
                                 message = errors
                                 break
-                    
+
                     response["message"] = message or "Something went wrong"
                 else:
                     response["message"] = "Something went wrong"
