@@ -67,6 +67,7 @@ class UserInputAPIView(APIView):
                 {"error": "intake_data field is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
         try:
             serializer = UserInputWriteSerializer(
                 data={
@@ -75,13 +76,51 @@ class UserInputAPIView(APIView):
                 },
                 context={"request": request},
             )
-            if serializer.is_valid():
-                serializer.save()
-                return Response(
-                    {"data": serializer.data, "message": "Intake created successfully"},
-                    status=status.HTTP_201_CREATED,
-                )
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+            serializer.save()
+
+            # --- Gemini Integration for Suggested Questions ---
+            suggested_questions = []
+            api_key = config("GEMINI_API_KEY", default=None)
+
+            if api_key:
+                try:
+                    user_input = get_suggested_questions_user_prompt(
+                        user_choice, intake_data
+                    )
+                    client = genai.Client(api_key=api_key)
+
+                    response = client.models.generate_content(
+                        model="gemini-3-flash-preview",
+                        config=types.GenerateContentConfig(
+                            system_instruction=SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
+                            temperature=0.7,
+                            response_mime_type="application/json",
+                        ),
+                        contents=user_input,
+                    )
+
+                    raw_reply = json.loads(response.text)
+                    suggested_questions = [
+                        {"id": idx + 1, "text": q} for idx, q in enumerate(raw_reply)
+                    ]
+                except Exception as gemini_err:
+                    print(f"Gemini generation failed: {gemini_err}")
+
+            return Response(
+                {
+                    "message": "Intake created and suggestions generated successfully",
+                    "data": {
+                        "intake": serializer.data,
+                        "suggested_questions": suggested_questions,
+                    },
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
@@ -167,79 +206,6 @@ class UserInputDetailAPIView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-
-class SuggestedRelatedAPIView(APIView):
-    renderer_classes = [UserRenderer]
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        user_type = request.query_params.get("type")
-
-        if user_type not in SUGGESTED_QUESTIONS_DATA:
-            return Response(
-                {"error": f"Invalid type. Use '{TYPE_BUILD}' or '{TYPE_EXISTING}'."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        data = SUGGESTED_QUESTIONS_DATA[user_type]
-
-        random_questions = random.sample(data["questions"], 3)
-
-        return Response(
-            {
-                "message": "Suggested questions retrieved successfully",
-                "data": {
-                    "user_type": user_type,
-                    "label": data["label"],
-                    "suggested_questions": random_questions,
-                },
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    def post(self, request):
-        user_choice = request.data.get("user_choice")
-        intake_data = request.data.get("intake_data")
-
-        user_input = get_suggested_questions_user_prompt(user_choice, intake_data)
-
-        api_key = config("GEMINI_API_KEY", default=None)
-        if not api_key:
-            return Response(
-                {"error": "Gemini API key not configured"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        try:
-            client = genai.Client(api_key=api_key)
-
-            response = client.models.generate_content(
-                model="gemini-3-flash-preview",
-                config=types.GenerateContentConfig(
-                    system_instruction=SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
-                    temperature=0.7,
-                    response_mime_type="application/json",
-                ),
-                contents=user_input,
-            )
-            raw_reply = json.loads(response.text)
-            formatted_questions = [
-                {"id": idx + 1, "text": q} for idx, q in enumerate(raw_reply)
-            ]
-
-            return Response(
-                {
-                    "message": "Suggestions generated successfully",
-                    "data": formatted_questions,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception as e:
-            return Response(
-                {"error": f"Gemini API error: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
 
 class GeminiAdvisoryAPI(APIView):
