@@ -11,6 +11,7 @@ from chat.constants import (
     SENDER_BOT,
     SENDER_CHOICES,
     SESSION_ACTIVE,
+    SESSION_LIMIT_REACHED,
     SESSION_STATUS_CHOICES,
 )
 from usecase_engine.models import UserInput
@@ -81,16 +82,13 @@ class ChatSession(models.Model):
         self.save()
 
     def get_chat_history(self, limit=10):
-        messages = (
-            self.messages.order_by("-sequence_number")[:limit].values(
-                "sender", "message_text"
-            )
+        messages = self.messages.order_by("-sequence_number")[:limit].values(
+            "sender", "message_text"
         )
         return [
             {"sender": msg["sender"], "message": msg["message_text"]}
             for msg in reversed(list(messages))
         ]
-
 
 
 class ChatMessage(models.Model):
@@ -124,26 +122,13 @@ class ChatMessage(models.Model):
 
     mcq_options = models.JSONField(
         null=True,
-        blank=True,
-        help_text="""
-        MCQ options if this is an MCQ question.
-        Format: {
-            "question": "What's your storage period?",
-            "options": [
-                {"key": "A", "value": "1-3 months"},
-                {"key": "B", "value": "3-6 months"},
-                {"key": "C", "value": "6-9 months"},
-                {"key": "D", "value": "Year-round"}
-            ]
-        }
-        """,
+        blank=True,   
     )
 
     mcq_selected_option = models.CharField(
         max_length=10,
         null=True,
         blank=True,
-        help_text="Selected option key (e.g., 'B') if this is user's MCQ response",
     )
 
     # Parent-child relationship for MCQ flow

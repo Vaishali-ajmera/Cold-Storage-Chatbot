@@ -1,8 +1,9 @@
 import json
 
-import openai
-from django.conf import settings
+from decouple import config
 from django.db import transaction
+from google import genai
+from google.genai import types
 
 from chat.constants import (
     MESSAGE_TYPE_BOT_ANSWER,
@@ -12,57 +13,50 @@ from chat.constants import (
     MESSAGE_TYPE_USER_QUESTION,
     SENDER_BOT,
     SENDER_USER,
+    CHAT_OUT_OF_CONTEXT_MESSAGE
 )
 from chat.models import ChatMessage, ChatSession
 from chat.prompts import (
     get_answer_generator_prompt,
     get_classifier_prompt,
     get_mcq_generator_prompt,
-    get_rejection_message,
 )
-
-# Initialize OpenAI
-openai.api_key = settings.OPENAI_API_KEY
 
 
 class ChatService:
     def __init__(self, session):
         self.session = session
 
-    def call_openai(self, system_prompt, user_prompt, temperature=0.3):
-        """
-        Call OpenAI API with error handling
-        """
+    def call_gemini(self, system_prompt, user_prompt, temperature=0.3):
+        api_key = config("GEMINI_API_KEY", default=None)
+
+        if not api_key:
+            raise Exception("GEMINI_API_KEY not configured in environment")
+
         try:
-            response = openai.ChatCompletion.create(
-                model="gpt-4",  # or gpt-3.5-turbo for cheaper
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=temperature,
-                response_format={"type": "json_object"},  # Force JSON output
+            client = genai.Client(api_key=api_key)
+
+            response = client.models.generate_content(
+                model="gemini-3-flash-preview",
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=temperature,
+                    response_mime_type="application/json",
+                ),
+                contents=user_prompt,
             )
 
-            result = json.loads(response.choices[0].message.content)
+            result = json.loads(response.text)
             return result
 
         except Exception as e:
             # Log error
-            print(f"OpenAI API Error: {str(e)}")
+            print(f"Gemini API Error: {str(e)}")
             raise
 
     @transaction.atomic
     def process_user_question(self, question_text, intake_data, chat_history):
-        """
-        Process user question through 3-prompt flow
-        
-        Args:
-            question_text: The user's question
-            intake_data: Dict with 'user_choice' and 'intake_data' from DB
-            chat_history: List of previous messages
-        """
-        # Save user's question
+
         user_message = ChatMessage.objects.create(
             session=self.session,
             sender=SENDER_USER,
@@ -70,17 +64,14 @@ class ChatService:
             message_type=MESSAGE_TYPE_USER_QUESTION,
         )
 
-        # Increment question counter
         self.session.increment_question_count()
 
-        # STEP 1: Call Classifier Prompt
         system_prompt, user_prompt = get_classifier_prompt(
             intake_data, chat_history, question_text
         )
 
-        classification = self.call_openai(system_prompt, user_prompt)
+        classification = self.call_gemini(system_prompt, user_prompt)
 
-        # Handle based on classification
         if classification["classification"] == "OUT_OF_CONTEXT":
             return self._handle_out_of_context()
 
@@ -93,39 +84,30 @@ class ChatService:
             return self._handle_direct_answer(question_text, intake_data, chat_history)
 
     def _handle_out_of_context(self):
-        """Handle out-of-context questions"""
-        rejection = get_rejection_message()
+        rejection = CHAT_OUT_OF_CONTEXT_MESSAGE
 
-        # Save bot's rejection
         ChatMessage.objects.create(
             session=self.session,
             sender=SENDER_BOT,
             message_text=rejection["message"],
             message_type=MESSAGE_TYPE_BOT_REJECTION,
-            suggested_questions={"questions": rejection["suggested_questions"]},
         )
 
-        # Decrement counter (out-of-context doesn't count)
-        self.session.user_questions_count -= 1
         self.session.save()
 
         return {
             "type": "rejection",
             "message": rejection["message"],
-            "suggestions": rejection["suggested_questions"],
             "remaining_questions": self.session.remaining_questions(),
         }
 
     def _handle_needs_followup(self, original_question, missing_field, intake_data):
-        """Generate MCQ to collect missing info"""
-        # STEP 2: Call MCQ Generator Prompt
         system_prompt, user_prompt = get_mcq_generator_prompt(
             intake_data, original_question, missing_field
         )
 
-        mcq_data = self.call_openai(system_prompt, user_prompt)
+        mcq_data = self.call_gemini(system_prompt, user_prompt)
 
-        # Save bot's MCQ question
         mcq_message = ChatMessage.objects.create(
             session=self.session,
             sender=SENDER_BOT,
@@ -142,16 +124,15 @@ class ChatService:
             "remaining_questions": self.session.remaining_questions(),
         }
 
-    def _handle_direct_answer(self, question_text, intake_data, chat_history, mcq_response=None):
-        """Generate final answer"""
-        # STEP 3: Call Answer Generator Prompt
+    def _handle_direct_answer(
+        self, question_text, intake_data, chat_history, mcq_response=None
+    ):
         system_prompt, user_prompt = get_answer_generator_prompt(
             intake_data, chat_history, question_text, mcq_response
         )
 
-        answer_data = self.call_openai(system_prompt, user_prompt, temperature=0.7)
+        answer_data = self.call_gemini(system_prompt, user_prompt, temperature=0.7)
 
-        # Save bot's answer
         ChatMessage.objects.create(
             session=self.session,
             sender=SENDER_BOT,
@@ -168,28 +149,16 @@ class ChatService:
         }
 
     @transaction.atomic
-    def process_mcq_response(self, mcq_message_id, selected_option, selected_value, intake_data, chat_history):
-        """
-        Handle user's MCQ response and generate final answer
-        
-        Args:
-            mcq_message_id: UUID of the MCQ question message
-            selected_option: Selected option key (A, B, C, D)
-            selected_value: Full text of selected option
-            intake_data: Dict with 'user_choice' and 'intake_data' from DB
-            chat_history: List of previous messages
-        """
-
-        # Get the MCQ message
+    def process_mcq_response(
+        self, mcq_message_id, selected_value, intake_data, chat_history
+    ):
         mcq_message = ChatMessage.objects.get(id=mcq_message_id)
 
-        # Save user's MCQ response
         ChatMessage.objects.create(
             session=self.session,
             sender=SENDER_USER,
             message_text=selected_value,
             message_type=MESSAGE_TYPE_USER_MCQ,
-            mcq_selected_option=selected_option,
             parent_message=mcq_message,
         )
 
@@ -207,10 +176,9 @@ class ChatService:
             else "Previous question"
         )
 
-        # Generate answer with MCQ context
         return self._handle_direct_answer(
-            original_question, 
-            intake_data, 
+            original_question,
+            intake_data,
             chat_history,
-            mcq_response=f"User selected: {selected_value}"
+            mcq_response=f"User selected: {selected_value}",
         )

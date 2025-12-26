@@ -49,13 +49,8 @@ class AskQuestionView(APIView):
                 user=request.user, intake_data=active_intake, status=SESSION_ACTIVE
             )
 
-        # Prepare intake data (raw from DB)
-        intake_data = {
-            "user_choice": session.intake_data.user_choice,
-            "intake_data": session.intake_data.intake_data
-        }
-        
-        # Prepare chat history
+        intake_data = session.intake_data
+
         chat_history = session.get_chat_history()
 
         if not session.can_accept_question():
@@ -68,7 +63,10 @@ class AskQuestionView(APIView):
                         "remaining_questions": session.remaining_questions(),
                         "status": session.status,
                         "limit_reached": True,
-                        "history": ChatHistorySerializer(session.messages.all().order_by("sequence_number"), many=True).data,
+                        "history": ChatHistorySerializer(
+                            session.messages.all().order_by("sequence_number"),
+                            many=True,
+                        ).data,
                     },
                 },
                 status=status.HTTP_200_OK,
@@ -105,35 +103,22 @@ class AskQuestionView(APIView):
 
 
 class AnswerMCQView(APIView):
-    """
-    POST /api/chat/mcq-response/
-
-    User responds to MCQ question
-    """
-
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Validate input
         serializer = UserMCQResponseSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
-            )
+        serializer.is_valid(raise_exception=True)
 
         mcq_message_id = serializer.validated_data["mcq_message_id"]
-        selected_option = serializer.validated_data["selected_option"]
         selected_value = serializer.validated_data["selected_value"]
 
-        # Get message and session
         try:
             mcq_message = ChatMessage.objects.select_related("session").get(
                 id=mcq_message_id
             )
             session = mcq_message.session
 
-            # Verify session belongs to user
             if session.user != request.user:
                 return Response(
                     {"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN
@@ -144,20 +129,17 @@ class AnswerMCQView(APIView):
                 {"error": "MCQ message not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Prepare intake data and chat history
-        intake_data = {
-            "user_choice": session.intake_data.user_choice,
-            "intake_data": session.intake_data.intake_data
-        }
+        intake_data = session.intake_data
         chat_history = session.get_chat_history()
-        
-        # Process MCQ response
+
         chat_service = ChatService(session)
 
         try:
             response_data = chat_service.process_mcq_response(
-                mcq_message_id, selected_option, selected_value,
-                intake_data, chat_history
+                mcq_message_id,
+                selected_value,
+                intake_data,
+                chat_history,
             )
 
             return Response(
