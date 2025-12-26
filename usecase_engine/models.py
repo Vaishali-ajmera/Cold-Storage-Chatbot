@@ -16,6 +16,7 @@ class UserInput(models.Model):
         blank=True,
         help_text="Initial user-provided inputs like location, capacity, budget, etc.",
     )
+    is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

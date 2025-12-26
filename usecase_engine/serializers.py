@@ -32,6 +32,7 @@ class UserInputReadSerializer(UserInputBaseSerializer):
             "user_choice",
             "user_choice_display",
             "intake_data",
+            "is_active",
             "created_at",
             "updated_at",
         ]
@@ -42,7 +43,7 @@ class UserInputWriteSerializer(UserInputBaseSerializer):
 
     class Meta:
         model = UserInput
-        fields = ["user_choice", "intake_data"]
+        fields = ["user_choice", "intake_data", "is_active"]
 
     def create(self, validated_data):
         return UserInput.objects.create(

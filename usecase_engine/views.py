@@ -55,6 +55,7 @@ class UserInputAPIView(APIView):
     def post(self, request):
         user_choice = request.data.get("user_choice")
         intake_data = request.data.get("intake_data")
+        is_active = request.data.get("is_active", True)  # Default to True
 
         if not user_choice:
             return Response(
@@ -69,10 +70,17 @@ class UserInputAPIView(APIView):
             )
 
         try:
+            # If creating an active input, deactivate all existing inputs for this user
+            if is_active:
+                UserInput.objects.filter(user=request.user, is_active=True).update(
+                    is_active=False
+                )
+
             serializer = UserInputWriteSerializer(
                 data={
                     "user_choice": user_choice,
                     "intake_data": intake_data,
+                    "is_active": is_active,
                 },
                 context={"request": request},
             )
@@ -170,6 +178,28 @@ class UserInputDetailAPIView(APIView):
                 return Response(
                     {"error": "Intake not found"}, status=status.HTTP_404_NOT_FOUND
                 )
+
+            # Check if trying to deactivate and ensure at least one remains active
+            is_active = request.data.get("is_active")
+            if is_active is False:
+                # Check if this is the only active input
+                active_count = UserInput.objects.filter(
+                    user=request.user, is_active=True
+                ).count()
+                if active_count <= 1:
+                    return Response(
+                        {
+                            "error": "Cannot deactivate. At least one input must be active."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # If setting this input as active, deactivate all others
+            if is_active is True and not intake.is_active:
+                UserInput.objects.filter(user=request.user, is_active=True).exclude(
+                    pk=pk
+                ).update(is_active=False)
+
             serializer = UserInputWriteSerializer(
                 intake,
                 data=request.data,
@@ -196,6 +226,20 @@ class UserInputDetailAPIView(APIView):
                 return Response(
                     {"error": "Intake not found"}, status=status.HTTP_404_NOT_FOUND
                 )
+
+            # Prevent deletion if this is the only active input
+            if intake.is_active:
+                active_count = UserInput.objects.filter(
+                    user=request.user, is_active=True
+                ).count()
+                if active_count <= 1:
+                    return Response(
+                        {
+                            "error": "Cannot delete. At least one active input must exist."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
             intake.delete()
             return Response(
                 {"message": "Intake deleted successfully"}, status=status.HTTP_200_OK
@@ -205,7 +249,6 @@ class UserInputDetailAPIView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
 
 
 class GeminiAdvisoryAPI(APIView):

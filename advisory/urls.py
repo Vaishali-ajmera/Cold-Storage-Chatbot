@@ -50,6 +50,7 @@ urlpatterns = (
         ),
         path("", include("accounts.urls"), name="accounts"),
         path("", include("usecase_engine.urls"), name="usecase_engine"),
+        path("", include("chat.urls"), name="chat"),
     ]
     + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
