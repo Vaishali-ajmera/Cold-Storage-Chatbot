@@ -192,4 +192,3 @@ CHAT_OUT_OF_CONTEXT_MESSAGE = {
         "What are typical potato storage operational costs?",
     ],
 }
-

@@ -50,7 +50,9 @@ def get_mcq_generator_prompt(intake_data, user_question, missing_field):
     return system_prompt, user_prompt
 
 
-def get_answer_generator_prompt(intake_data, chat_history, user_question, mcq_response=None):
+def get_answer_generator_prompt(
+    intake_data, chat_history, user_question, mcq_response=None
+):
     system_prompt = CHAT_ANSWER_GENERATOR_SYSTEM_PROMPT
 
     intake_text = json.dumps(intake_data, indent=2)
@@ -76,4 +78,3 @@ def get_answer_generator_prompt(intake_data, chat_history, user_question, mcq_re
                     Provide your answer and suggested follow-up questions."""
 
     return system_prompt, user_prompt
-

@@ -1,16 +1,16 @@
-# chat/views.py
-
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.renders import UserRenderer
-from chat.constants import SESSION_ACTIVE
+from chat.constants import DEFAULT_MAX_QUESTIONS, SESSION_ACTIVE
 from chat.models import ChatMessage, ChatSession
 from chat.serializers import (
     ChatHistorySerializer,
     ChatSessionSerializer,
+    SessionListSerializer,
+    UpdateSessionTitleSerializer,
     UserMCQResponseSerializer,
     UserQuestionInputSerializer,
 )
@@ -26,7 +26,6 @@ class AskQuestionView(APIView):
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
-
         question = serializer.validated_data["question"]
         session = serializer.validated_data.get("session_id")
 
@@ -49,25 +48,21 @@ class AskQuestionView(APIView):
                 user=request.user, intake_data=active_intake, status=SESSION_ACTIVE
             )
 
-        intake_data = session.intake_data
+        intake_data = {
+            "user_choice": session.intake_data.user_choice,
+            "intake_data": session.intake_data.intake_data,
+        }
+
+        # Auto-generate title from first question if not set
+        if not session.title:
+            session.set_title_from_question(question)
 
         chat_history = session.get_chat_history()
 
         if not session.can_accept_question():
             return Response(
                 {
-                    "message": "Question limit reached for this session. Please start a new chat.",
-                    "data": {
-                        "session_id": str(session.id),
-                        "user_questions_count": session.user_questions_count,
-                        "remaining_questions": session.remaining_questions(),
-                        "status": session.status,
-                        "limit_reached": True,
-                        "history": ChatHistorySerializer(
-                            session.messages.all().order_by("sequence_number"),
-                            many=True,
-                        ).data,
-                    },
+                    "message": f"You've reached the maximum of {DEFAULT_MAX_QUESTIONS} questions per session. Please start a new chat to continue.",
                 },
                 status=status.HTTP_200_OK,
             )
@@ -89,7 +84,6 @@ class AskQuestionView(APIView):
                 "message": "Question processed successfully",
                 "data": {
                     "session_id": str(session.id),
-                    "history": chat_history,
                     "type": response_data.get("type"),
                     "response_message": response_data.get("message"),
                     "suggestions": response_data.get("suggestions"),
@@ -107,7 +101,9 @@ class AnswerMCQView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = UserMCQResponseSerializer(data=request.data)
+        serializer = UserMCQResponseSerializer(
+            data=request.data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
 
         mcq_message_id = serializer.validated_data["mcq_message_id"]
@@ -129,7 +125,10 @@ class AnswerMCQView(APIView):
                 {"error": "MCQ message not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        intake_data = session.intake_data
+        intake_data = {
+            "user_choice": session.intake_data.user_choice,
+            "intake_data": session.intake_data.intake_data,
+        }
         chat_history = session.get_chat_history()
 
         chat_service = ChatService(session)
@@ -158,12 +157,6 @@ class AnswerMCQView(APIView):
 
 
 class ChatHistoryView(APIView):
-    """
-    GET /api/chat/history/<session_id>/
-
-    Get full chat history for a session
-    """
-
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
@@ -175,7 +168,6 @@ class ChatHistoryView(APIView):
                 {"error": "Session not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Get all messages
         messages = session.messages.all().order_by("sequence_number")
 
         return Response(
@@ -191,37 +183,47 @@ class ChatHistoryView(APIView):
 
 
 class ListUserSessionsAPIView(APIView):
-    """
-    GET: List all chat sessions for a user (for chat history sidebar)
-    """
-
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """
-        List user's sessions
+        sessions = ChatSession.objects.filter(user=request.user).prefetch_related(
+            "messages"
+        )
 
-        Response:
-        {
-            "sessions": [
-                {
-                    "id": "uuid",
-                    "started_at": "2024-12-24T10:00:00Z",
-                    "status": "active",
-                    "user_questions_count": 2,
-                    "last_message_preview": "For chips-grade potatoes..."
-                },
-                {
-                    "id": "uuid",
-                    "started_at": "2024-12-23T15:00:00Z",
-                    "status": "limit_reached",
-                    "user_questions_count": 4,
-                    "last_message_preview": "Solar panels can reduce..."
-                },
-                ...
-            ]
-        }
-        """
-        # TODO: Implement session listing
-        pass
+        serializer = SessionListSerializer(sessions, many=True)
+
+        return Response(
+            {
+                "message": "Sessions retrieved successfully",
+                "data": {"sessions": serializer.data},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class UpdateSessionTitleAPIView(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, session_id):
+        try:
+            session = ChatSession.objects.get(id=session_id, user=request.user)
+        except ChatSession.DoesNotExist:
+            return Response(
+                {"error": "Session not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = UpdateSessionTitleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        session.title = serializer.validated_data["title"]
+        session.save(update_fields=["title"])
+
+        return Response(
+            {
+                "message": "Session title updated successfully",
+                "data": {"id": str(session.id), "title": session.title},
+            },
+            status=status.HTTP_200_OK,
+        )

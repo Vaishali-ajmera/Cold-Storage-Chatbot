@@ -60,7 +60,13 @@ class UserQuestionInputSerializer(serializers.Serializer):
         required=True,
     )
     session_id = serializers.PrimaryKeyRelatedField(
-        queryset=ChatSession.objects.none(), required=False, allow_null=True
+        queryset=ChatSession.objects.none(),
+        required=False,
+        allow_null=True,
+        error_messages={
+            "does_not_exist": "You've reached the maximum of 4 questions per session. Please start a new chat to continue.",
+            "invalid": "You've reached the maximum of 4 questions per session. Please start a new chat to continue.",
+        },
     )
 
     def __init__(self, *args, **kwargs):
@@ -89,16 +95,28 @@ class UserMCQResponseSerializer(serializers.Serializer):
     )
 
     def validate(self, data):
+        request = self.context.get("request")
+
         try:
-            mcq_message = ChatMessage.objects.get(id=data["mcq_message_id"])
+            mcq_message = ChatMessage.objects.select_related("session").get(
+                id=data["mcq_message_id"]
+            )
         except ChatMessage.DoesNotExist:
             raise serializers.ValidationError("MCQ message not found")
+
+        if mcq_message.session.user != request.user:
+            raise serializers.ValidationError("Unauthorized access to this session")
+
+        if mcq_message.session.status != SESSION_ACTIVE:
+            raise serializers.ValidationError(
+                "You've reached the maximum of 4 questions per session. Please start a new chat to continue."
+            )
 
         if not mcq_message.mcq_options:
             raise serializers.ValidationError("This is not an MCQ question")
 
         options = mcq_message.mcq_options.get("options", [])
-        
+
         if data["selected_value"] not in options:
             raise serializers.ValidationError(
                 f"Invalid option. Valid options are: {', '.join(options)}"
@@ -122,3 +140,34 @@ class ChatHistorySerializer(serializers.ModelSerializer):
             "mcq_selected_option",
             "created_at",
         ]
+
+
+class SessionListSerializer(serializers.ModelSerializer):
+
+    title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChatSession
+        fields = [
+            "id",
+            "title",
+            "started_at",
+            "status",
+        ]
+
+    def get_title(self, obj):
+        """Get session title or fallback"""
+        return obj.title or "New Chat"
+
+
+class UpdateSessionTitleSerializer(serializers.Serializer):
+    title = serializers.CharField(
+        max_length=200,
+        required=True,
+        allow_blank=False,
+    )
+
+    def validate_title(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Title cannot be empty")
+        return value.strip()

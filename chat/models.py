@@ -34,6 +34,13 @@ class ChatSession(models.Model):
         related_name="chat_sessions",
     )
 
+    title = models.CharField(
+        max_length=200,
+        null=True,
+        blank=True,
+        help_text="Auto-generated session title from first question",
+    )
+
     user_questions_count = models.PositiveIntegerField(
         default=0,
         validators=[MinValueValidator(0)],
@@ -51,7 +58,6 @@ class ChatSession(models.Model):
 
     class Meta:
         ordering = ["-started_at"]
-        unique_together = ["user"]
         indexes = [
             models.Index(fields=["user"]),
             models.Index(fields=["status", "started_at"]),
@@ -90,6 +96,24 @@ class ChatSession(models.Model):
             for msg in reversed(list(messages))
         ]
 
+    def set_title_from_question(self, question):
+        """Auto-generate session title from first question"""
+        if not self.title and question:
+            self.title = (question[:50] + "...") if len(question) > 50 else question
+            self.save(update_fields=["title"])
+
+    def get_last_message_preview(self, max_length=80):
+        """Get preview of the last bot message"""
+        last_bot_message = (
+            self.messages.filter(sender=SENDER_BOT).order_by("-sequence_number").first()
+        )
+
+        if last_bot_message:
+            text = last_bot_message.message_text
+            return (text[:max_length] + "...") if len(text) > max_length else text
+
+        return None
+
 
 class ChatMessage(models.Model):
 
@@ -122,7 +146,7 @@ class ChatMessage(models.Model):
 
     mcq_options = models.JSONField(
         null=True,
-        blank=True,   
+        blank=True,
     )
 
     mcq_selected_option = models.CharField(

@@ -6,6 +6,7 @@ from google import genai
 from google.genai import types
 
 from chat.constants import (
+    CHAT_OUT_OF_CONTEXT_MESSAGE,
     MESSAGE_TYPE_BOT_ANSWER,
     MESSAGE_TYPE_BOT_MCQ,
     MESSAGE_TYPE_BOT_REJECTION,
@@ -13,7 +14,6 @@ from chat.constants import (
     MESSAGE_TYPE_USER_QUESTION,
     SENDER_BOT,
     SENDER_USER,
-    CHAT_OUT_OF_CONTEXT_MESSAGE
 )
 from chat.models import ChatMessage, ChatSession
 from chat.prompts import (

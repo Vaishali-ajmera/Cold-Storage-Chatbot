@@ -26,12 +26,6 @@ from usecase_engine.utils import get_suggested_questions_user_prompt
 
 
 class UserInputAPIView(APIView):
-    """
-    Handles:
-    - GET: list all user inputs
-    - POST: create a new user input
-    """
-
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
@@ -70,7 +64,6 @@ class UserInputAPIView(APIView):
             )
 
         try:
-            # If creating an active input, deactivate all existing inputs for this user
             if is_active:
                 UserInput.objects.filter(user=request.user, is_active=True).update(
                     is_active=False
@@ -90,7 +83,6 @@ class UserInputAPIView(APIView):
 
             serializer.save()
 
-            # --- Gemini Integration for Suggested Questions ---
             suggested_questions = []
             api_key = config("GEMINI_API_KEY", default=None)
 

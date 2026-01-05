@@ -5,6 +5,7 @@ from chat.views import (
     AskQuestionView,
     ChatHistoryView,
     ListUserSessionsAPIView,
+    UpdateSessionTitleAPIView,
 )
 
 urlpatterns = [
@@ -12,4 +13,9 @@ urlpatterns = [
     path("mcq-response/", AnswerMCQView.as_view(), name="mcq-response"),
     path("history/<uuid:session_id>/", ChatHistoryView.as_view(), name="chat-history"),
     path("sessions/", ListUserSessionsAPIView.as_view(), name="list-sessions"),
+    path(
+        "sessions/<uuid:session_id>/title/",
+        UpdateSessionTitleAPIView.as_view(),
+        name="update-session-title",
+    ),
 ]
