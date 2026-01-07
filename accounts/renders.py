@@ -36,7 +36,7 @@ class UserRenderer(renderers.JSONRenderer):
                             elif isinstance(errors, str):
                                 message = errors
                                 break
-                    
+
                     # If message is still a dict or list, convert to string
                     if isinstance(message, dict):
                         # Extract first error from nested dictionary
@@ -51,7 +51,9 @@ class UserRenderer(renderers.JSONRenderer):
                         message = message[0]
 
                     # Ensure message is always a string
-                    response["message"] = str(message) if message else "Something went wrong"
+                    response["message"] = (
+                        str(message) if message else "Something went wrong"
+                    )
                 else:
                     response["message"] = "Something went wrong"
 

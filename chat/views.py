@@ -230,7 +230,7 @@ class UpdateSessionTitleAPIView(APIView):
 
 
 class GetSessionIntakeView(APIView):
-    
+
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
@@ -241,8 +241,7 @@ class GetSessionIntakeView(APIView):
             )
         except ChatSession.DoesNotExist:
             return Response(
-                {"error": "Chat session not found"}, 
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Chat session not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
         if not session.intake_data:
@@ -252,6 +251,7 @@ class GetSessionIntakeView(APIView):
             )
 
         from usecase_engine.serializers import UserInputReadSerializer
+
         serializer = UserInputReadSerializer(session.intake_data)
 
         return Response(

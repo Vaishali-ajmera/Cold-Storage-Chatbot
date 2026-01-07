@@ -31,7 +31,7 @@ def generate_otp():
 class SignupAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
-    authentication_classes = []  
+    authentication_classes = []
 
     def post(self, request):
         serializer = UserSerializer(data=request.data)
