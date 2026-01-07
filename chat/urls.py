@@ -4,6 +4,7 @@ from chat.views import (
     AnswerMCQView,
     AskQuestionView,
     ChatHistoryView,
+    GetSessionIntakeView,
     ListUserSessionsAPIView,
     UpdateSessionTitleAPIView,
 )
@@ -17,5 +18,10 @@ urlpatterns = [
         "sessions/<uuid:session_id>/title/",
         UpdateSessionTitleAPIView.as_view(),
         name="update-session-title",
+    ),
+    path(
+        "sessions/<uuid:session_id>/intake/",
+        GetSessionIntakeView.as_view(),
+        name="get-session-intake",
     ),
 ]

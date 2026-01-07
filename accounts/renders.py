@@ -27,7 +27,7 @@ class UserRenderer(renderers.JSONRenderer):
                         or data.get("non_field_errors")
                     )
 
-                    # If no standard error key found, try to extract first field error
+                    # If message is still None or empty, try to extract first field error
                     if not message:
                         for field, errors in data.items():
                             if isinstance(errors, list) and errors:
@@ -36,8 +36,22 @@ class UserRenderer(renderers.JSONRenderer):
                             elif isinstance(errors, str):
                                 message = errors
                                 break
+                    
+                    # If message is still a dict or list, convert to string
+                    if isinstance(message, dict):
+                        # Extract first error from nested dictionary
+                        for field, errors in message.items():
+                            if isinstance(errors, list) and errors:
+                                message = errors[0]
+                                break
+                            elif isinstance(errors, str):
+                                message = errors
+                                break
+                    elif isinstance(message, list) and message:
+                        message = message[0]
 
-                    response["message"] = message or "Something went wrong"
+                    # Ensure message is always a string
+                    response["message"] = str(message) if message else "Something went wrong"
                 else:
                     response["message"] = "Something went wrong"
 

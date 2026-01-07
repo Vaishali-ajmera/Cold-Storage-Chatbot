@@ -227,3 +227,40 @@ class UpdateSessionTitleAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class GetSessionIntakeView(APIView):
+    
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        try:
+            session = ChatSession.objects.select_related("intake_data").get(
+                id=session_id, user=request.user
+            )
+        except ChatSession.DoesNotExist:
+            return Response(
+                {"error": "Chat session not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not session.intake_data:
+            return Response(
+                {"error": "No intake data associated with this session"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        from usecase_engine.serializers import UserInputReadSerializer
+        serializer = UserInputReadSerializer(session.intake_data)
+
+        return Response(
+            {
+                "message": "Intake data retrieved successfully",
+                "data": {
+                    "session_id": str(session.id),
+                    "intake": serializer.data,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )

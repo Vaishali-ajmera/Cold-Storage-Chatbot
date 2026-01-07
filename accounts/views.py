@@ -31,6 +31,7 @@ def generate_otp():
 class SignupAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
+    authentication_classes = []  
 
     def post(self, request):
         serializer = UserSerializer(data=request.data)
@@ -103,6 +104,7 @@ class SignupAPIView(APIView):
 class EmailLoginAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for login
 
     def post(self, request):
         email = request.data.get("email")
@@ -151,6 +153,7 @@ class EmailLoginAPIView(APIView):
 class ForgetPasswordRequestAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for forgot password
 
     def post(self, request):
         email = request.data.get("email")
@@ -210,6 +213,7 @@ class ForgetPasswordRequestAPIView(APIView):
 class VerifyOTPAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for OTP verification
 
     def post(self, request):
         email = request.data.get("email")
@@ -249,6 +253,7 @@ class VerifyOTPAPIView(APIView):
 class ResetPasswordAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication for password reset
 
     def post(self, request):
         email = request.data.get("email")

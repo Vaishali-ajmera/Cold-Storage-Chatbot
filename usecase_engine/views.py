@@ -29,23 +29,6 @@ class UserInputAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        try:
-            queryset = UserInput.objects.filter(user=request.user)
-            serializer = UserInputReadSerializer(queryset, many=True)
-            return Response(
-                {
-                    "data": serializer.data,
-                    "message": "User inputs retrieved successfully",
-                },
-                status=status.HTTP_200_OK,
-            )
-        except Exception as e:
-            return Response(
-                {"error": f"An error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
     def post(self, request):
         user_choice = request.data.get("user_choice")
         intake_data = request.data.get("intake_data")
