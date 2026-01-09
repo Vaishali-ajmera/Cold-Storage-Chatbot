@@ -171,21 +171,7 @@ OUTPUT FORMAT (STRICT JSON):
 
 
 CHAT_OUT_OF_CONTEXT_MESSAGE = {
-    "message": (
-        "I specialize EXCLUSIVELY in POTATO cold storage advisory. 🥔\n\n"
-        "I can help with POTATO-specific topics like:\n"
-        "• Optimal storage temperature for different potato varieties\n"
-        "• Humidity control to prevent sprouting and weight loss\n"
-        "• Facility design for potato storage\n"
-        "• Disease and spoilage prevention in potatoes\n"
-        "• Operational costs and ROI for potato storage\n"
-        "• Pre-cooling and curing of potatoes\n\n"
-        "❌ I cannot help with:\n"
-        "• Other crops (tomatoes, onions, fruits, etc.)\n"
-        "• General agriculture topics\n"
-        "• Non-storage related questions\n\n"
-        "Please ask a question specifically about POTATO cold storage."
-    ),
+    "message": "I specialize EXCLUSIVELY in POTATO cold storage advisory. 🥔 I can help with POTATO-specific topics like: Optimal storage temperature for different potato varieties, Humidity control to prevent sprouting and weight loss, Facility design for potato storage, Disease. Please ask a question specifically about POTATO cold storage.",
     "suggested_questions": [
         "What's the ideal storage temperature for potatoes?",
         "How to prevent potato sprouting in storage?",
