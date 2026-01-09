@@ -3,7 +3,6 @@ import os
 import random
 
 from decouple import config
-from django.shortcuts import get_object_or_404
 from google import genai
 from google.genai import types
 from rest_framework import status
@@ -13,15 +12,10 @@ from rest_framework.views import APIView
 
 from accounts.renders import UserRenderer
 from usecase_engine.constants import (
-    SUGGESTED_QUESTIONS_DATA,
     SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
-    SUGGESTION_USER_PROMPT,
-    SYSTEM_PROMPT,
-    TYPE_BUILD,
-    TYPE_EXISTING,
 )
 from usecase_engine.models import UserInput
-from usecase_engine.serializers import UserInputReadSerializer, UserInputWriteSerializer
+from usecase_engine.serializers import UserInputWriteSerializer
 from usecase_engine.utils import get_suggested_questions_user_prompt
 
 
@@ -32,7 +26,7 @@ class UserInputAPIView(APIView):
     def post(self, request):
         user_choice = request.data.get("user_choice")
         intake_data = request.data.get("intake_data")
-        is_active = request.data.get("is_active", True)  # Default to True
+        is_active = request.data.get("is_active", True)  
 
         if not user_choice:
             return Response(
@@ -64,7 +58,17 @@ class UserInputAPIView(APIView):
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            serializer.save()
+            user_input_instance = serializer.save()
+
+            # Create a new ChatSession for this intake
+            from chat.models import ChatSession
+            from chat.constants import SESSION_ACTIVE
+            
+            chat_session = ChatSession.objects.create(
+                user=request.user,
+                intake_data=user_input_instance,
+                status=SESSION_ACTIVE
+            )
 
             suggested_questions = []
             api_key = config("GEMINI_API_KEY", default=None)
@@ -98,6 +102,7 @@ class UserInputAPIView(APIView):
                     "message": "Intake created and suggestions generated successfully",
                     "data": {
                         "intake": serializer.data,
+                        "session_id": str(chat_session.id),
                         "suggested_questions": suggested_questions,
                     },
                 },
