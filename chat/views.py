@@ -264,3 +264,55 @@ class GetSessionIntakeView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class CreateSessionView(APIView):
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            from usecase_engine.models import UserInput
+
+            active_intake = UserInput.objects.filter(
+                user=request.user, is_active=True
+            ).first()
+
+            if not active_intake:
+                return Response(
+                    {
+                        "error": "No active intake data found. Please complete the intake form first."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Create a new chat session with the active intake data
+            session = ChatSession.objects.create(
+                user=request.user,
+                intake_data=active_intake,
+                status=SESSION_ACTIVE,
+            )
+
+            # Prepare response data
+            return Response(
+                {
+                    "message": "New chat session created successfully",
+                    "data": {
+                        "session_id": str(session.id),
+                        "title": session.title or "New Chat",
+                        "status": session.status,
+                        "intake_id": str(active_intake.id),
+                        "user_choice": active_intake.user_choice,
+                        "remaining_questions": session.remaining_questions(),
+                        "can_ask_question": session.can_accept_question(),
+                        "created_at": session.created_at.isoformat(),
+                    },
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to create session: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
