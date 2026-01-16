@@ -46,6 +46,12 @@ class ChatSession(models.Model):
         validators=[MinValueValidator(0)],
     )
 
+    llm_context_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Pre-computed chat history for LLM context (excludes META/OUT_OF_CONTEXT)",
+    )
+
     status = models.CharField(
         max_length=20, choices=SESSION_STATUS_CHOICES, default=SESSION_ACTIVE
     )
@@ -87,7 +93,39 @@ class ChatSession(models.Model):
 
         self.save()
 
+    def get_llm_context(self, limit=10):
+        """
+        Get pre-computed LLM context history.
+        No DB queries, no filtering - just return the stored context.
+        """
+        history = self.llm_context_history or []
+        # Return last N messages to keep context window manageable
+        return history[-limit:] if len(history) > limit else history
+
+    def append_to_llm_context(self, sender: str, message: str):
+        """
+        Append a message to the LLM context history.
+        Should only be called for ANSWER_DIRECTLY and MCQ conversations.
+        """
+        if self.llm_context_history is None:
+            self.llm_context_history = []
+        
+        self.llm_context_history.append({
+            "sender": sender,
+            "message": message
+        })
+        
+        # Keep only last 20 messages to prevent unlimited growth
+        if len(self.llm_context_history) > 20:
+            self.llm_context_history = self.llm_context_history[-20:]
+        
+        self.save(update_fields=["llm_context_history"])
+
     def get_chat_history(self, limit=10):
+        """
+        DEPRECATED: Use get_llm_context() instead.
+        Kept for backward compatibility with existing code.
+        """
         messages = self.messages.order_by("-sequence_number")[:limit].values(
             "sender", "message_text"
         )

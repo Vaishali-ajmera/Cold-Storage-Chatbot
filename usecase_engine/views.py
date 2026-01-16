@@ -61,13 +61,38 @@ class UserInputAPIView(APIView):
             user_input_instance = serializer.save()
 
             # Create a new ChatSession for this intake
-            from chat.models import ChatSession
-            from chat.constants import SESSION_ACTIVE
+            from chat.models import ChatSession, ChatMessage
+            from chat.constants import (
+                SESSION_ACTIVE,
+                SENDER_BOT,
+                MESSAGE_TYPE_BOT_ANSWER,
+                WELCOME_MESSAGE_BUILD,
+                WELCOME_MESSAGE_EXISTING,
+                WELCOME_MESSAGE_DEFAULT,
+            )
+            from usecase_engine.constants import TYPE_BUILD, TYPE_EXISTING
             
             chat_session = ChatSession.objects.create(
                 user=request.user,
                 intake_data=user_input_instance,
                 status=SESSION_ACTIVE
+            )
+
+            # Determine welcome message based on user_choice
+            if user_choice == TYPE_BUILD:
+                welcome_message = WELCOME_MESSAGE_BUILD
+            elif user_choice == TYPE_EXISTING:
+                welcome_message = WELCOME_MESSAGE_EXISTING
+            else:
+                welcome_message = WELCOME_MESSAGE_DEFAULT
+
+            # Create the welcome message as the first bot message
+            welcome_chat_message = ChatMessage.objects.create(
+                session=chat_session,
+                sender=SENDER_BOT,
+                message_text=welcome_message,
+                message_type=MESSAGE_TYPE_BOT_ANSWER,
+                suggested_questions=None,
             )
 
             suggested_questions = []
@@ -104,6 +129,7 @@ class UserInputAPIView(APIView):
                         "intake": serializer.data,
                         "session_id": str(chat_session.id),
                         "suggested_questions": suggested_questions,
+                        "welcome_message": welcome_message,
                     },
                 },
                 status=status.HTTP_201_CREATED,

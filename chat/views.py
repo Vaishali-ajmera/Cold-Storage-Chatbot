@@ -57,8 +57,6 @@ class AskQuestionView(APIView):
         if not session.title:
             session.set_title_from_question(question)
 
-        chat_history = session.get_chat_history()
-
         if not session.can_accept_question():
             return Response(
                 {
@@ -70,8 +68,9 @@ class AskQuestionView(APIView):
         chat_service = ChatService(session)
 
         try:
+            # Note: chat_history no longer passed - service uses session.get_llm_context()
             response_data = chat_service.process_user_question(
-                question, intake_data, chat_history
+                question, intake_data
             )
         except Exception as e:
             return Response(
@@ -129,16 +128,15 @@ class AnswerMCQView(APIView):
             "user_choice": session.intake_data.user_choice,
             "intake_data": session.intake_data.intake_data,
         }
-        chat_history = session.get_chat_history()
 
         chat_service = ChatService(session)
 
         try:
+            # Note: chat_history no longer passed - service uses session.get_llm_context()
             response_data = chat_service.process_mcq_response(
                 mcq_message_id,
                 selected_value,
                 intake_data,
-                chat_history,
             )
 
             return Response(
@@ -273,6 +271,14 @@ class CreateSessionView(APIView):
     def post(self, request):
         try:
             from usecase_engine.models import UserInput
+            from usecase_engine.constants import TYPE_BUILD, TYPE_EXISTING
+            from chat.constants import (
+                WELCOME_MESSAGE_BUILD,
+                WELCOME_MESSAGE_EXISTING,
+                WELCOME_MESSAGE_DEFAULT,
+                MESSAGE_TYPE_BOT_ANSWER,
+                SENDER_BOT,
+            )
 
             active_intake = UserInput.objects.filter(
                 user=request.user, is_active=True
@@ -293,6 +299,24 @@ class CreateSessionView(APIView):
                 status=SESSION_ACTIVE,
             )
 
+            # Determine welcome message based on user_choice
+            user_choice = active_intake.user_choice
+            if user_choice == TYPE_BUILD:
+                welcome_message = WELCOME_MESSAGE_BUILD
+            elif user_choice == TYPE_EXISTING:
+                welcome_message = WELCOME_MESSAGE_EXISTING
+            else:
+                welcome_message = WELCOME_MESSAGE_DEFAULT
+
+            # Create the welcome message as the first bot message
+            welcome_chat_message = ChatMessage.objects.create(
+                session=session,
+                sender=SENDER_BOT,
+                message_text=welcome_message,
+                message_type=MESSAGE_TYPE_BOT_ANSWER,
+                suggested_questions=None,
+            )
+
             # Prepare response data
             return Response(
                 {
@@ -306,6 +330,7 @@ class CreateSessionView(APIView):
                         "remaining_questions": session.remaining_questions(),
                         "can_ask_question": session.can_accept_question(),
                         "created_at": session.created_at.isoformat(),
+                        "welcome_message": welcome_message,
                     },
                 },
                 status=status.HTTP_201_CREATED,
@@ -316,3 +341,4 @@ class CreateSessionView(APIView):
                 {"error": f"Failed to create session: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
