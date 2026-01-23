@@ -26,11 +26,11 @@ def _format_history(chat_history: list) -> str:
 def get_classifier_prompt(intake_data: dict, chat_history: list, user_question: str):
     system_prompt = CHAT_CLASSIFIER_SYSTEM_PROMPT
     intake_text = json.dumps(intake_data, indent=2)
-    history_text = _format_history(chat_history)
+    # History disabled for now to reduce token usage
+    # history_text = _format_history(chat_history)
 
     user_prompt = f"""USER INTAKE DATA:
                     {intake_text}
-                    {history_text}
 
                     CURRENT USER QUESTION:
                     "{user_question}"
@@ -99,7 +99,8 @@ def get_answer_generator_prompt(
     system_prompt = CHAT_ANSWER_GENERATOR_SYSTEM_PROMPT
     intake_text = json.dumps(intake_data, indent=2)
     
-    history_text = _format_history(chat_history)
+    # History disabled for now to reduce token usage
+    # history_text = _format_history(chat_history)
 
     mcq_text = ""
     if mcq_response:
@@ -107,9 +108,6 @@ def get_answer_generator_prompt(
     
     user_prompt = f"""USER INTAKE DATA:
                     {intake_text}
-
-                    {history_text}
-
                     {mcq_text}
 
                     CURRENT USER QUESTION:
