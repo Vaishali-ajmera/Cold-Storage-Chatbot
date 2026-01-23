@@ -54,11 +54,10 @@ class ChatService:
         if not api_key:
             raise Exception("GEMINI_API_KEY not configured in environment")
         
-        retry_count = 0
         max_retries = 3
         last_error = None
         
-        while retry_count <= max_retries:
+        for attempt in range(1, max_retries + 1):
             try:
                 client = genai.Client(api_key=api_key)
                 
@@ -92,32 +91,41 @@ class ChatService:
                 
             except json.JSONDecodeError as e:
                 last_error = e
-                retry_count += 1
                 logger.error(
-                    f"[{purpose}] JSON Parse Error (attempt {retry_count}/{max_retries}):\n"
+                    f"[{purpose}] JSON Parse Error (attempt {attempt}/{max_retries}):\n"
                     f"   ├─ Error: {str(e)}\n"
                     f"   └─ Raw Response: {response.text[:500] if hasattr(response, 'text') else 'N/A'}..."
                 )
-                if retry_count <= max_retries:
-                    time.sleep(1 * retry_count)
+                if attempt < max_retries:
+                    time.sleep(1 * attempt)
                     continue
                     
             except Exception as e:
                 last_error = e
                 error_str = str(e).lower()
-                retry_count += 1
+                
+                # Check if it's a quota/rate limit error - DON'T retry these
+                if "429" in error_str or "quota" in error_str or "resource_exhausted" in error_str:
+                    logger.error(
+                        f"[{purpose}] Quota Exceeded - NOT retrying:\n"
+                        f"   ├─ Type: {type(e).__name__}\n"
+                        f"   └─ Message: {str(e)[:200]}..."
+                    )
+                    raise e  # Fail immediately, no retry
                 
                 logger.error(
-                    f"[{purpose}] API Error (attempt {retry_count}/{max_retries}):\n"
+                    f"[{purpose}] API Error (attempt {attempt}/{max_retries}):\n"
                     f"   ├─ Type: {type(e).__name__}\n"
                     f"   └─ Message: {str(e)}"
                 )
                 
-                if any(x in error_str for x in ["timeout", "429", "rate limit", "500"]):
-                    if retry_count <= max_retries:
-                        time.sleep(2 ** retry_count)
+                # Retry on timeout or 500 errors
+                if any(x in error_str for x in ["timeout", "500"]):
+                    if attempt < max_retries:
+                        time.sleep(2 ** attempt)
                         continue
                 
+                # For other errors, don't retry
                 break
         
         logger.error(f"[{purpose}] All retries exhausted. Final error: {type(last_error).__name__}: {str(last_error)}")
