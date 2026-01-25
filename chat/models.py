@@ -90,8 +90,6 @@ class ChatSession(models.Model):
         help_text="Auto-generated session title from first question",
     )
 
-
-
     llm_context_history = models.JSONField(
         default=list,
         blank=True,
@@ -120,7 +118,6 @@ class ChatSession(models.Model):
 
     def is_active(self):
         return self.status == SESSION_ACTIVE
-
     def get_llm_context(self, limit=10):
         history = self.llm_context_history or []
         return history[-limit:] if len(history) > limit else history
@@ -145,18 +142,6 @@ class ChatSession(models.Model):
         if not self.title and question:
             self.title = (question[:50] + "...") if len(question) > 50 else question
             self.save(update_fields=["title"])
-
-    def get_last_message_preview(self, max_length=80):
-        """Get preview of the last bot message"""
-        last_bot_message = (
-            self.messages.filter(sender=SENDER_BOT).order_by("-sequence_number").first()
-        )
-
-        if last_bot_message:
-            text = last_bot_message.message_text
-            return (text[:max_length] + "...") if len(text) > max_length else text
-
-        return None
 
 
 class ChatMessage(models.Model):

@@ -5,7 +5,6 @@ from chat.views import (
     AskQuestionView,
     ChatHistoryView,
     CreateSessionView,
-    DailyQuotaStatusView,
     GetSessionIntakeView,
     ListUserSessionsAPIView,
     TaskStatusView,
@@ -31,5 +30,4 @@ urlpatterns = [
         GetSessionIntakeView.as_view(),
         name="get-session-intake",
     ),
-    path("quota/", DailyQuotaStatusView.as_view(), name="daily-quota-status"),
 ]

@@ -36,7 +36,6 @@ class AskQuestionView(APIView):
         question = serializer.validated_data["question"]
         session = serializer.validated_data.get("session_id")
 
-        # Check global daily quota first
         from chat.models import DailyQuestionQuota
         from chat.constants import DEFAULT_MAX_DAILY_QUESTIONS
         
@@ -46,9 +45,8 @@ class AskQuestionView(APIView):
             return Response(
                 {
                     "message": f"You've reached your daily limit of {DEFAULT_MAX_DAILY_QUESTIONS} questions. Please try again tomorrow.",
-                    "async": False,
                     "data": {
-                        "daily_limit_reached": True,
+                        "error_code": "DAILY_QUOTA_EXCEEDED",
                         "remaining_daily_questions": 0,
                     }
                 },
@@ -71,16 +69,7 @@ class AskQuestionView(APIView):
                 )
 
             session = ChatSession.objects.create(
-                user=request.user, intake_data=active_intake, status=SESSION_ACTIVE
-            )
-
-        if not session.is_active():
-            return Response(
-                {
-                    "message": "This session is no longer active. Please start a new chat to continue.",
-                    "async": False,
-                },
-                status=status.HTTP_200_OK,
+                user=request.user, intake_data=active_intake
             )
 
         intake_data = {
@@ -88,14 +77,11 @@ class AskQuestionView(APIView):
             "intake_data": session.intake_data.intake_data,
         }
 
-        # Auto-generate title from first question if not set
         if not session.title:
             session.set_title_from_question(question)
 
-        # Increment daily quota when question is accepted
         daily_quota.increment_count()
 
-        # Queue the task for async processing
         task = process_question_task.delay(
             session_id=str(session.id),
             question=question,
@@ -330,7 +316,6 @@ class CreateSessionView(APIView):
             else:
                 welcome_message = WELCOME_MESSAGE_DEFAULT
 
-            # Create the welcome message as the first bot message
             welcome_chat_message = ChatMessage.objects.create(
                 session=session,
                 sender=SENDER_BOT,
@@ -339,11 +324,9 @@ class CreateSessionView(APIView):
                 suggested_questions=None,
             )
 
-            # Get daily quota for response
             from chat.models import DailyQuestionQuota
             daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
 
-            # Prepare response data
             return Response(
                 {
                     "message": "New chat session created successfully",
@@ -363,14 +346,13 @@ class CreateSessionView(APIView):
             )
 
         except Exception as e:
-            return Response(
+           return Response(
                 {"error": f"Failed to create session: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
-
-class TaskStatusView(APIView):  
+class TaskStatusView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
@@ -378,75 +360,98 @@ class TaskStatusView(APIView):
         try:
             result = AsyncResult(task_id, app=celery_app)
             
-            response_data = {
-                "task_id": task_id,
-                "status": result.status,
-            }
-
             if result.successful():
                 task_result = result.result
                 
                 if task_result and task_result.get("success"):
-                    response_data["data"] = {
-                        "session_id": task_result.get("session_id"),
-                        "type": task_result.get("type"),
-                        "response_message": task_result.get("response_message"),
-                        "suggestions": task_result.get("suggestions"),
-                        "mcq": task_result.get("mcq"),
-                        "mcq_message_id": task_result.get("mcq_message_id"),
-                        "remaining_daily_questions": task_result.get("remaining_daily_questions"),
-                        "daily_limit_reached": task_result.get("daily_limit_reached", False),
-                    }
+                    return Response(
+                        {
+                            "message": "Task completed successfully",
+                            "data": {
+                                "task_id": task_id,
+                                "task_status": "SUCCESS",
+                                "session_id": task_result.get("session_id"),
+                                "type": task_result.get("type"),
+                                "response_message": task_result.get("response_message"),
+                                "suggestions": task_result.get("suggestions"),
+                                "mcq": task_result.get("mcq"),
+                                "mcq_message_id": task_result.get("mcq_message_id"),
+                                "remaining_daily_questions": task_result.get("remaining_daily_questions"),
+                            },
+                        },
+                        status=status.HTTP_200_OK,
+                    )
                 else:
-                    response_data["error"] = task_result.get("error", "Unknown error")
-                    response_data["status"] = "FAILURE"
+                    # Task completed but with error (e.g., quota exceeded)
+                    error_code = "DAILY_QUOTA_EXCEEDED" if task_result.get("daily_limit_reached") else "TASK_FAILED"
+                    return Response(
+                        {
+                            "message": task_result.get("error", "Task failed"),
+                            "data": {
+                                "task_id": task_id,
+                                "task_status": "FAILURE",
+                                "error_code": error_code,
+                            },
+                        },
+                        status=status.HTTP_200_OK,
+                    )
 
             elif result.failed():
-                response_data["error"] = str(result.result) if result.result else "Task failed"
+                return Response(
+                    {
+                        "message": str(result.result) if result.result else "Task failed",
+                        "data": {
+                            "task_id": task_id,
+                            "task_status": "FAILURE",
+                            "error_code": "TASK_FAILED",
+                        },
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
             elif result.status == "PENDING":
-                response_data["message"] = "Task is waiting in the queue"
+                return Response(
+                    {
+                        "message": "Task is waiting in the queue",
+                        "data": {"task_id": task_id, "task_status": "PENDING"},
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
             elif result.status == "STARTED":
-                response_data["message"] = "Task is being processed"
+                return Response(
+                    {
+                        "message": "Task is being processed",
+                        "data": {"task_id": task_id, "task_status": "STARTED"},
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
             elif result.status == "RETRY":
-                response_data["message"] = "Task is being retried"
+                return Response(
+                    {
+                        "message": "Task is being retried",
+                        "data": {"task_id": task_id, "task_status": "RETRY"},
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
-            return Response(response_data, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {
+                        "message": f"Task status: {result.status}",
+                        "data": {"task_id": task_id, "task_status": result.status},
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
         except Exception as e:
             logger.error(f"Error checking task status: {str(e)}")
             return Response(
-                {"error": f"Failed to check task status: {str(e)}"},
+                {
+                    "message": f"Failed to check task status: {str(e)}",
+                    "data": {"error_code": "TASK_STATUS_ERROR"},
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-
-class DailyQuotaStatusView(APIView):
-    """
-    Get the user's daily question quota status.
-    Returns remaining questions for today and whether they can ask more questions.
-    """
-    renderer_classes = [UserRenderer]
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        from chat.models import DailyQuestionQuota
-        from chat.constants import DEFAULT_MAX_DAILY_QUESTIONS
-        
-        daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
-        
-        return Response(
-            {
-                "message": "Daily quota status retrieved successfully",
-                "data": {
-                    "date": str(daily_quota.date),
-                    "questions_asked_today": daily_quota.question_count,
-                    "remaining_daily_questions": daily_quota.remaining_questions(),
-                    "daily_limit": DEFAULT_MAX_DAILY_QUESTIONS,
-                    "can_ask_question": daily_quota.can_ask_question(),
-                },
-            },
-            status=status.HTTP_200_OK,
-        )
