@@ -6,6 +6,8 @@ USER_CHOICES = [
     (TYPE_EXISTING, "I already have a cold storage"),
 ]
 
+MODEL_NAME = "gemini-2.5-flash-lite"
+
 SUGGESTED_QUESTIONS_SYSTEM_PROMPT = """
 ROLE:
 You are a senior cold storage consultant specializing in agricultural cold chains.

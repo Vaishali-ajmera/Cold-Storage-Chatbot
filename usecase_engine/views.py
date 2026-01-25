@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from accounts.renders import UserRenderer
 from usecase_engine.constants import (
     SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
+    MODEL_NAME
 )
 from usecase_engine.models import UserInput
 from usecase_engine.serializers import UserInputWriteSerializer
@@ -60,7 +61,6 @@ class UserInputAPIView(APIView):
 
             user_input_instance = serializer.save()
 
-            # Create a new ChatSession for this intake
             from chat.models import ChatSession, ChatMessage
             from chat.constants import (
                 SESSION_ACTIVE,
@@ -78,22 +78,12 @@ class UserInputAPIView(APIView):
                 status=SESSION_ACTIVE
             )
 
-            # Determine welcome message based on user_choice
             if user_choice == TYPE_BUILD:
                 welcome_message = WELCOME_MESSAGE_BUILD
             elif user_choice == TYPE_EXISTING:
                 welcome_message = WELCOME_MESSAGE_EXISTING
             else:
                 welcome_message = WELCOME_MESSAGE_DEFAULT
-
-            # Create the welcome message as the first bot message
-            welcome_chat_message = ChatMessage.objects.create(
-                session=chat_session,
-                sender=SENDER_BOT,
-                message_text=welcome_message,
-                message_type=MESSAGE_TYPE_BOT_ANSWER,
-                suggested_questions=None,
-            )
 
             suggested_questions = []
             api_key = config("GEMINI_API_KEY", default=None)
@@ -106,7 +96,7 @@ class UserInputAPIView(APIView):
                     client = genai.Client(api_key=api_key)
 
                     response = client.models.generate_content(
-                        model="gemini-1.5-flash",
+                        model=MODEL_NAME,
                         config=types.GenerateContentConfig(
                             system_instruction=SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
                             temperature=0.7,
@@ -116,11 +106,18 @@ class UserInputAPIView(APIView):
                     )
 
                     raw_reply = json.loads(response.text)
-                    suggested_questions = [
-                        {"id": idx + 1, "text": q} for idx, q in enumerate(raw_reply)
-                    ]
+                    if isinstance(raw_reply, list):
+                        suggested_questions = raw_reply
                 except Exception as gemini_err:
                     print(f"Gemini generation failed: {gemini_err}")
+
+            welcome_chat_message = ChatMessage.objects.create(
+                session=chat_session,
+                sender=SENDER_BOT,
+                message_text=welcome_message,
+                message_type=MESSAGE_TYPE_BOT_ANSWER,
+                suggested_questions={"questions": suggested_questions},
+            )
 
             return Response(
                 {
