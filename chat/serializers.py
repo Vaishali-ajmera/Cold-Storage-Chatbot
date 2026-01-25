@@ -2,11 +2,11 @@ from django.contrib.auth.models import User
 from rest_framework import serializers
 
 from chat.constants import SESSION_ACTIVE
-from chat.models import ChatMessage, ChatSession
+from chat.models import ChatMessage, ChatSession, DailyQuestionQuota
 
 
 class ChatSessionSerializer(serializers.ModelSerializer):
-    remaining_questions = serializers.SerializerMethodField()
+    remaining_daily_questions = serializers.SerializerMethodField()
     can_ask_question = serializers.SerializerMethodField()
 
     class Meta:
@@ -15,8 +15,7 @@ class ChatSessionSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "intake_data",
-            "user_questions_count",
-            "remaining_questions",
+            "remaining_daily_questions",
             "can_ask_question",
             "status",
             "started_at",
@@ -26,20 +25,21 @@ class ChatSessionSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "user",
-            "user_questions_count",
             "status",
             "started_at",
             "ended_at",
             "created_at",
         ]
 
-    def get_remaining_questions(self, obj):
-        """Show remaining questions"""
-        return obj.remaining_questions()
+    def get_remaining_daily_questions(self, obj):
+        """Show remaining daily questions across all sessions"""
+        daily_quota = DailyQuestionQuota.get_or_create_today(obj.user)
+        return daily_quota.remaining_questions()
 
     def get_can_ask_question(self, obj):
-        """Can user ask more questions?"""
-        return obj.can_accept_question()
+        """Can user ask more questions today?"""
+        daily_quota = DailyQuestionQuota.get_or_create_today(obj.user)
+        return daily_quota.can_ask_question() and obj.is_active()
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):

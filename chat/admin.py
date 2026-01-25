@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from chat.models import ChatMessage, ChatSession
+from chat.models import ChatMessage, ChatSession, DailyQuestionQuota
 
 
 class ChatMessageInline(admin.TabularInline):
@@ -39,8 +39,9 @@ class ChatSessionAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "user",
+        "title",
         "status",
-        "user_questions_count",
+        "started_at",
     )
 
     list_filter = (
@@ -48,17 +49,10 @@ class ChatSessionAdmin(admin.ModelAdmin):
         "started_at",
     )
 
-    search_fields = (
-        "id",
-        "user__username",
-        "user__email",
-    )
-
     readonly_fields = (
         "id",
         "user",
         "intake_data",
-        "user_questions_count",
         "started_at",
         "created_at",
         "updated_at",
@@ -77,18 +71,6 @@ class ChatMessageAdmin(admin.ModelAdmin):
         "message_type",
     )
 
-    list_filter = (
-        "sender",
-        "message_type",
-        "created_at",
-    )
-
-    search_fields = (
-        "message_text",
-        "session__id",
-        "session__user__username",
-    )
-
     readonly_fields = (
         "id",
         "session",
@@ -102,3 +84,26 @@ class ChatMessageAdmin(admin.ModelAdmin):
         "parent_message",
         "created_at",
     )
+
+
+@admin.register(DailyQuestionQuota)
+class DailyQuestionQuotaAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "date",
+        "question_count",
+        "remaining_questions",
+        "created_at",
+    )
+
+    readonly_fields = (
+        "user",
+        "date",
+        "question_count",
+        "created_at",
+        "updated_at",
+    )
+
+    def remaining_questions(self, obj):
+        return obj.remaining_questions()
+    remaining_questions.short_description = "Remaining"

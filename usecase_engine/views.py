@@ -106,7 +106,7 @@ class UserInputAPIView(APIView):
                     client = genai.Client(api_key=api_key)
 
                     response = client.models.generate_content(
-                        model="gemini-3-flash-preview",
+                        model="gemini-1.5-flash",
                         config=types.GenerateContentConfig(
                             system_instruction=SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
                             temperature=0.7,

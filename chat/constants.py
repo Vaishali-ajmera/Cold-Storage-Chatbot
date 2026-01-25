@@ -39,10 +39,12 @@ SESSION_STATUS_CHOICES = [
 
 # Configuration
 DEFAULT_MAX_QUESTIONS = 20
+DEFAULT_MAX_DAILY_QUESTIONS = 10  
 DEFAULT_SESSION_TIMEOUT_HOURS = 24
 
 # LLM Model Configuration
-LLM_MODEL_NAME = "gemini-3-flash-preview"
+# LLM_MODEL_NAME = "gemini-3-flash-preview"
+LLM_MODEL_NAME = "gemini-2.5-flash"
 LLM_MODEL_VERSION = "3.0"
 TEMPERATURE = 0.3
 

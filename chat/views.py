@@ -1,10 +1,14 @@
+import logging
+
+from celery.result import AsyncResult
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.renders import UserRenderer
-from chat.constants import DEFAULT_MAX_QUESTIONS, SESSION_ACTIVE
+from advisory.celery import app as celery_app
+from chat.constants import SESSION_ACTIVE
 from chat.models import ChatMessage, ChatSession
 from chat.serializers import (
     ChatHistorySerializer,
@@ -15,6 +19,9 @@ from chat.serializers import (
     UserQuestionInputSerializer,
 )
 from chat.services import ChatService
+from chat.tasks import process_mcq_response_task, process_question_task
+
+logger = logging.getLogger("chat.views")
 
 
 class AskQuestionView(APIView):
@@ -28,6 +35,25 @@ class AskQuestionView(APIView):
         serializer.is_valid(raise_exception=True)
         question = serializer.validated_data["question"]
         session = serializer.validated_data.get("session_id")
+
+        # Check global daily quota first
+        from chat.models import DailyQuestionQuota
+        from chat.constants import DEFAULT_MAX_DAILY_QUESTIONS
+        
+        daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
+        
+        if not daily_quota.can_ask_question():
+            return Response(
+                {
+                    "message": f"You've reached your daily limit of {DEFAULT_MAX_DAILY_QUESTIONS} questions. Please try again tomorrow.",
+                    "async": False,
+                    "data": {
+                        "daily_limit_reached": True,
+                        "remaining_daily_questions": 0,
+                    }
+                },
+                status=status.HTTP_200_OK,
+            )
 
         if not session:
             from usecase_engine.models import UserInput
@@ -48,6 +74,15 @@ class AskQuestionView(APIView):
                 user=request.user, intake_data=active_intake, status=SESSION_ACTIVE
             )
 
+        if not session.is_active():
+            return Response(
+                {
+                    "message": "This session is no longer active. Please start a new chat to continue.",
+                    "async": False,
+                },
+                status=status.HTTP_200_OK,
+            )
+
         intake_data = {
             "user_choice": session.intake_data.user_choice,
             "intake_data": session.intake_data.intake_data,
@@ -57,41 +92,30 @@ class AskQuestionView(APIView):
         if not session.title:
             session.set_title_from_question(question)
 
-        if not session.can_accept_question():
-            return Response(
-                {
-                    "message": f"You've reached the maximum of {DEFAULT_MAX_QUESTIONS} questions per session. Please start a new chat to continue.",
-                },
-                status=status.HTTP_200_OK,
-            )
+        # Increment daily quota when question is accepted
+        daily_quota.increment_count()
 
-        chat_service = ChatService(session)
+        # Queue the task for async processing
+        task = process_question_task.delay(
+            session_id=str(session.id),
+            question=question,
+            intake_data=intake_data,
+            user_id=request.user.id,
+        )
 
-        try:
-            # Note: chat_history no longer passed - service uses session.get_llm_context()
-            response_data = chat_service.process_user_question(
-                question, intake_data
-            )
-        except Exception as e:
-            return Response(
-                {"error": "Failed to process question"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        logger.info(f"Queued question task {task.id} for session {session.id}")
 
         return Response(
             {
-                "message": "Question processed successfully",
+                "message": "Question submitted for processing",
                 "data": {
+                    "task_id": task.id,
                     "session_id": str(session.id),
-                    "type": response_data.get("type"),
-                    "response_message": response_data.get("message"),
-                    "suggestions": response_data.get("suggestions"),
-                    "mcq": response_data.get("mcq"),
-                    "mcq_message_id": response_data.get("mcq_message_id"),
-                    "remaining_questions": response_data.get("remaining_questions"),
+                    "status": "PENDING",
+                    "remaining_daily_questions": daily_quota.remaining_questions(),
                 },
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
@@ -129,29 +153,27 @@ class AnswerMCQView(APIView):
             "intake_data": session.intake_data.intake_data,
         }
 
-        chat_service = ChatService(session)
+        task = process_mcq_response_task.delay(
+            session_id=str(session.id),
+            mcq_message_id=str(mcq_message_id),
+            selected_value=selected_value,
+            intake_data=intake_data,
+            user_id=request.user.id,
+        )
 
-        try:
-            # Note: chat_history no longer passed - service uses session.get_llm_context()
-            response_data = chat_service.process_mcq_response(
-                mcq_message_id,
-                selected_value,
-                intake_data,
-            )
+        logger.info(f"Queued MCQ task {task.id} for session {session.id}")
 
-            return Response(
-                {
-                    "message": "MCQ response processed successfully",
-                    "data": {"session_id": str(session.id), **response_data},
+        return Response(
+            {
+                "message": "MCQ response submitted for processing",
+                "data": {
+                    "task_id": task.id,
+                    "session_id": str(session.id),
+                    "status": "PENDING",
                 },
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to process MCQ response: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 
 class ChatHistoryView(APIView):
@@ -317,6 +339,10 @@ class CreateSessionView(APIView):
                 suggested_questions=None,
             )
 
+            # Get daily quota for response
+            from chat.models import DailyQuestionQuota
+            daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
+
             # Prepare response data
             return Response(
                 {
@@ -327,8 +353,8 @@ class CreateSessionView(APIView):
                         "status": session.status,
                         "intake_id": str(active_intake.id),
                         "user_choice": active_intake.user_choice,
-                        "remaining_questions": session.remaining_questions(),
-                        "can_ask_question": session.can_accept_question(),
+                        "remaining_daily_questions": daily_quota.remaining_questions(),
+                        "can_ask_question": daily_quota.can_ask_question(),
                         "created_at": session.created_at.isoformat(),
                         "welcome_message": welcome_message,
                     },
@@ -342,3 +368,85 @@ class CreateSessionView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+
+
+class TaskStatusView(APIView):  
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, task_id):
+        try:
+            result = AsyncResult(task_id, app=celery_app)
+            
+            response_data = {
+                "task_id": task_id,
+                "status": result.status,
+            }
+
+            if result.successful():
+                task_result = result.result
+                
+                if task_result and task_result.get("success"):
+                    response_data["data"] = {
+                        "session_id": task_result.get("session_id"),
+                        "type": task_result.get("type"),
+                        "response_message": task_result.get("response_message"),
+                        "suggestions": task_result.get("suggestions"),
+                        "mcq": task_result.get("mcq"),
+                        "mcq_message_id": task_result.get("mcq_message_id"),
+                        "remaining_daily_questions": task_result.get("remaining_daily_questions"),
+                        "daily_limit_reached": task_result.get("daily_limit_reached", False),
+                    }
+                else:
+                    response_data["error"] = task_result.get("error", "Unknown error")
+                    response_data["status"] = "FAILURE"
+
+            elif result.failed():
+                response_data["error"] = str(result.result) if result.result else "Task failed"
+
+            elif result.status == "PENDING":
+                response_data["message"] = "Task is waiting in the queue"
+
+            elif result.status == "STARTED":
+                response_data["message"] = "Task is being processed"
+
+            elif result.status == "RETRY":
+                response_data["message"] = "Task is being retried"
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error checking task status: {str(e)}")
+            return Response(
+                {"error": f"Failed to check task status: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class DailyQuotaStatusView(APIView):
+    """
+    Get the user's daily question quota status.
+    Returns remaining questions for today and whether they can ask more questions.
+    """
+    renderer_classes = [UserRenderer]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from chat.models import DailyQuestionQuota
+        from chat.constants import DEFAULT_MAX_DAILY_QUESTIONS
+        
+        daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
+        
+        return Response(
+            {
+                "message": "Daily quota status retrieved successfully",
+                "data": {
+                    "date": str(daily_quota.date),
+                    "questions_asked_today": daily_quota.question_count,
+                    "remaining_daily_questions": daily_quota.remaining_questions(),
+                    "daily_limit": DEFAULT_MAX_DAILY_QUESTIONS,
+                    "can_ask_question": daily_quota.can_ask_question(),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )

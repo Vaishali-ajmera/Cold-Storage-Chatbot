@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types
 
 from chat.constants import (
+    DEFAULT_MAX_DAILY_QUESTIONS,
     MESSAGE_TYPE_BOT_ANSWER,
     MESSAGE_TYPE_BOT_MCQ,
     MESSAGE_TYPE_BOT_REJECTION,
@@ -17,7 +18,7 @@ from chat.constants import (
     SENDER_USER,
     LLM_MODEL_NAME,
 )
-from chat.models import ChatMessage, ChatSession
+from chat.models import ChatMessage, ChatSession, DailyQuestionQuota
 from chat.prompts import (
     get_answer_generator_prompt,
     get_classifier_prompt,
@@ -142,7 +143,8 @@ class ChatService:
             message_type=MESSAGE_TYPE_USER_QUESTION,
         )
         
-        self.session.increment_question_count()
+        # Note: Daily quota is already checked and incremented in views/tasks
+        # No need to increment here
         
         llm_context = self.session.get_llm_context()
         
@@ -208,11 +210,14 @@ class ChatService:
             suggested_questions=None,
         )
 
+        # Get daily quota for remaining questions
+        daily_quota = DailyQuestionQuota.get_or_create_today(self.session.user)
+
         return {
             "type": "meta",
             "message": meta_response["answer"],
             "suggestions": [],
-            "remaining_questions": self.session.remaining_questions(),
+            "remaining_daily_questions": daily_quota.remaining_questions(),
         }
 
     def _handle_out_of_context(self, question_text: str, out_of_context_type: str, language: str) -> dict:
@@ -235,11 +240,14 @@ class ChatService:
             suggested_questions=None,
         )
 
+        # Get daily quota for remaining questions
+        daily_quota = DailyQuestionQuota.get_or_create_today(self.session.user)
+
         return {
             "type": "rejection",
             "message": redirect_response["answer"],
             "suggestions": [],
-            "remaining_questions": self.session.remaining_questions(),
+            "remaining_daily_questions": daily_quota.remaining_questions(),
         }
 
     def _handle_needs_followup(
@@ -270,12 +278,15 @@ class ChatService:
 
         self.session.append_to_llm_context(SENDER_USER, original_question)
 
+        # Get daily quota for remaining questions
+        daily_quota = DailyQuestionQuota.get_or_create_today(self.session.user)
+
         return {
             "type": "mcq",
             "message": "To answer your question, I need:",
             "mcq": mcq_data,
             "mcq_message_id": str(mcq_message.id),
-            "remaining_questions": self.session.remaining_questions(),
+            "remaining_daily_questions": daily_quota.remaining_questions(),
         }
 
     def _handle_direct_answer(
@@ -308,11 +319,14 @@ class ChatService:
             self.session.append_to_llm_context(SENDER_USER, question_text)
         self.session.append_to_llm_context(SENDER_BOT, answer_data["answer"])
 
+        # Get daily quota for remaining questions
+        daily_quota = DailyQuestionQuota.get_or_create_today(self.session.user)
+
         return {
             "type": "answer",
             "message": answer_data["answer"],
             "suggestions": answer_data["suggested_questions"],
-            "remaining_questions": self.session.remaining_questions(),
+            "remaining_daily_questions": daily_quota.remaining_questions(),
         }
 
     @transaction.atomic

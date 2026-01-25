@@ -1,20 +1,69 @@
 import uuid
 
 from django.contrib.auth.models import User
-from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
 from chat.constants import (
-    DEFAULT_MAX_QUESTIONS,
+    DEFAULT_MAX_DAILY_QUESTIONS,
     MESSAGE_TYPE_CHOICES,
     SENDER_BOT,
     SENDER_CHOICES,
     SESSION_ACTIVE,
-    SESSION_LIMIT_REACHED,
     SESSION_STATUS_CHOICES,
 )
 from usecase_engine.models import UserInput
+
+
+class DailyQuestionQuota(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="daily_quotas",
+    )
+    
+    date = models.DateField(
+        help_text="The date for which this quota applies (local date)"
+    )
+    
+    question_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of questions asked on this date"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ["user", "date"]
+        ordering = ["-date"]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.date}: {self.question_count}/{DEFAULT_MAX_DAILY_QUESTIONS}"
+    
+    def can_ask_question(self):
+        """Check if user can ask more questions today"""
+        return self.question_count < DEFAULT_MAX_DAILY_QUESTIONS
+    
+    def remaining_questions(self):
+        """Get the number of questions remaining for today"""
+        return max(0, DEFAULT_MAX_DAILY_QUESTIONS - self.question_count)
+    
+    def increment_count(self):
+        """Increment the daily question count"""
+        self.question_count += 1
+        self.save(update_fields=["question_count", "updated_at"])
+    
+    @classmethod
+    def get_or_create_today(cls, user):
+        """Get or create today's quota record for a user"""
+        today = timezone.now().date()
+        quota, created = cls.objects.get_or_create(
+            user=user,
+            date=today,
+            defaults={"question_count": 0}
+        )
+        return quota
 
 
 class ChatSession(models.Model):
@@ -41,10 +90,7 @@ class ChatSession(models.Model):
         help_text="Auto-generated session title from first question",
     )
 
-    user_questions_count = models.PositiveIntegerField(
-        default=0,
-        validators=[MinValueValidator(0)],
-    )
+
 
     llm_context_history = models.JSONField(
         default=list,
@@ -72,41 +118,14 @@ class ChatSession(models.Model):
     def __str__(self):
         return f"{self.user.username} - ChatSession {self.id}"
 
-    def can_accept_question(self):
-        """Check if session can accept more questions"""
-        return (
-            self.status == SESSION_ACTIVE
-            and self.user_questions_count < DEFAULT_MAX_QUESTIONS
-        )
-
-    def remaining_questions(self):
-        """Calculate remaining questions allowed"""
-        return max(0, DEFAULT_MAX_QUESTIONS - self.user_questions_count)
-
-    def increment_question_count(self):
-        """Safely increment user question counter"""
-        self.user_questions_count += 1
-
-        if self.user_questions_count >= DEFAULT_MAX_QUESTIONS:
-            self.status = SESSION_LIMIT_REACHED
-            self.ended_at = timezone.now()
-
-        self.save()
+    def is_active(self):
+        return self.status == SESSION_ACTIVE
 
     def get_llm_context(self, limit=10):
-        """
-        Get pre-computed LLM context history.
-        No DB queries, no filtering - just return the stored context.
-        """
         history = self.llm_context_history or []
-        # Return last N messages to keep context window manageable
         return history[-limit:] if len(history) > limit else history
 
     def append_to_llm_context(self, sender: str, message: str):
-        """
-        Append a message to the LLM context history.
-        Should only be called for ANSWER_DIRECTLY and MCQ conversations.
-        """
         if self.llm_context_history is None:
             self.llm_context_history = []
         
@@ -120,19 +139,6 @@ class ChatSession(models.Model):
             self.llm_context_history = self.llm_context_history[-20:]
         
         self.save(update_fields=["llm_context_history"])
-
-    def get_chat_history(self, limit=10):
-        """
-        DEPRECATED: Use get_llm_context() instead.
-        Kept for backward compatibility with existing code.
-        """
-        messages = self.messages.order_by("-sequence_number")[:limit].values(
-            "sender", "message_text"
-        )
-        return [
-            {"sender": msg["sender"], "message": msg["message_text"]}
-            for msg in reversed(list(messages))
-        ]
 
     def set_title_from_question(self, question):
         """Auto-generate session title from first question"""

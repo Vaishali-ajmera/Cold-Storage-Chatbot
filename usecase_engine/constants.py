@@ -14,12 +14,11 @@ GOAL:
 Generate EXACTLY 3 ultra-short, UI-friendly suggested questions for a chatbot.
 
 STYLE RULES (STRICT):
-- Each item must be 4–6 words maximum.
-- Use short, action-oriented phrases.
-- No full sentences.
-- No punctuation.
-- No numbering.
-- No explanations.
+- Each question must be 4–6 words
+- Each must be a complete question
+- Each must end with a question mark
+- One clear idea per question
+- No explanations or extra text
 
 INTENT RULES:
 - EXISTING storage → optimization, cost reduction, efficiency, storage strategy, market timing.
@@ -36,9 +35,9 @@ OUTPUT FORMAT (STRICT):
 Return ONLY a valid JSON array of exactly 3 strings.
 Example:
 [
-  "Reduce electricity costs",
-  "Optimal storage temperature",
-  "Best market release timing"
+  "How long should storage continue?",
+  "How can sprouting be reduced?",
+  "When is best market release?"
 ]
 """
 

@@ -39,6 +39,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "drf_yasg",
     # "django_celery_beat",
+    "django_celery_results"
 ]
 
 
@@ -185,11 +186,13 @@ OTP_RESEND_LIMIT_MINUTES = 15
 
 # Celery settings
 CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
-CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+CELERY_RESULT_BACKEND = "django-db"  
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_RESULT_EXTENDED = True  # Store additional task metadata
+
 
 # CORS settings for frontend access
 CORS_ALLOW_ALL_ORIGINS = True  # For development only - restrict in production
@@ -258,5 +261,16 @@ LOGGING = {
             "level": "DEBUG",
             "propagate": False,
         },
+        "chat.tasks": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "chat.views": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
     },
 }
+
