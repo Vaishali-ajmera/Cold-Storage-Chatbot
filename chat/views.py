@@ -193,9 +193,7 @@ class ListUserSessionsAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        sessions = ChatSession.objects.filter(user=request.user).prefetch_related(
-            "messages"
-        )
+        sessions = ChatSession.objects.filter(user=request.user)
 
         serializer = SessionListSerializer(sessions, many=True)
 

@@ -32,15 +32,18 @@ class ChatSessionSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
+    def _get_quota(self, obj):
+        if not hasattr(obj, '_cached_quota'):
+            obj._cached_quota = DailyQuestionQuota.get_or_create_today(obj.user)
+        return obj._cached_quota
+
     def get_remaining_daily_questions(self, obj):
         """Show remaining daily questions across all sessions"""
-        daily_quota = DailyQuestionQuota.get_or_create_today(obj.user)
-        return daily_quota.remaining_questions()
+        return self._get_quota(obj).remaining_questions()
 
     def get_can_ask_question(self, obj):
         """Can user ask more questions today?"""
-        daily_quota = DailyQuestionQuota.get_or_create_today(obj.user)
-        return daily_quota.can_ask_question() and obj.is_active()
+        return self._get_quota(obj).can_ask_question() and obj.is_active()
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):
