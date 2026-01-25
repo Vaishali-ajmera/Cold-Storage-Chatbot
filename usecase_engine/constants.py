@@ -34,8 +34,8 @@ DOMAIN RULES (CONDITIONAL — NOT HARD-CODED):
 - If location implies high production or high energy cost → consider regional power tariffs, subsidies, and market behavior.
 
 OUTPUT FORMAT (STRICT):
-Return ONLY a valid JSON array of exactly 3 strings.
-Example:
+Return ONLY a valid JSON array of exactly 3 strings in the target language.
+Example (English):
 [
   "How long should storage continue?",
   "How can sprouting be reduced?",

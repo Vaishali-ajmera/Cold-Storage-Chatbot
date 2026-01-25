@@ -1,6 +1,18 @@
 from django.contrib import admin
 
-from .models import UserOTP
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from .models import User, UserOTP
+
+
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    fieldsets = BaseUserAdmin.fieldsets + (
+        ("Preferences", {"fields": ("preferred_language", "has_set_preferences")}),
+    )
+    add_fieldsets = BaseUserAdmin.add_fieldsets + (
+        ("Preferences", {"fields": ("preferred_language", "has_set_preferences")}),
+    )
+    list_display = BaseUserAdmin.list_display + ("preferred_language", "has_set_preferences")
 
 
 @admin.register(UserOTP)

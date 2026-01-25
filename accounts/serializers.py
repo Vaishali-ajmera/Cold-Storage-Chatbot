@@ -1,15 +1,18 @@
-from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from rest_framework import serializers
 
+User = get_user_model()
 
-class UserSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    first_name = serializers.CharField(max_length=150)
-    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+
+class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "first_name", "last_name", "password", "preferred_language", "has_set_preferences"]
+        read_only_fields = ["id", "username", "has_set_preferences"]
 
     def validate_email(self, value):
         try:

@@ -149,6 +149,8 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",  # Keep this for username login fallback
 ]
 
+AUTH_USER_MODEL = "accounts.User"
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 

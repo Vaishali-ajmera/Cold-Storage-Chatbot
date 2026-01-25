@@ -3,10 +3,11 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.hashers import make_password
-from django.contrib.auth.models import User
 from django.utils import timezone
+
+User = get_user_model()
 from django.utils.crypto import get_random_string
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -26,6 +27,21 @@ from accounts.tasks import (
 
 def generate_otp():
     return get_random_string(length=6, allowed_chars="0123456789")
+
+
+def get_user_data(user):
+    """
+    Helper function to return standardized user data for login/signup responses.
+    """
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "preferred_language": user.preferred_language,
+        "has_set_preferences": user.has_set_preferences,
+    }
 
 
 class SignupAPIView(APIView):
@@ -84,13 +100,7 @@ class SignupAPIView(APIView):
                     "data": {
                         "refresh": refresh_token,
                         "access": access_token,
-                        "user": {
-                            "id": user.id,
-                            "username": user.username,
-                            "email": user.email,
-                            "first_name": user.first_name,
-                            "last_name": user.last_name,
-                        },
+                        "user": get_user_data(user),
                     },
                 },
                 status=status.HTTP_201_CREATED,
@@ -137,13 +147,7 @@ class EmailLoginAPIView(APIView):
                 "data": {
                     "refresh": refresh_token,
                     "access": access_token,
-                    "user": {
-                        "id": user.id,
-                        "username": user.username,
-                        "email": user.email,
-                        "first_name": user.first_name,
-                        "last_name": user.last_name,
-                    },
+                    "user": get_user_data(user),
                 },
             },
             status=status.HTTP_200_OK,
@@ -283,7 +287,6 @@ class ResetPasswordAPIView(APIView):
         user.save()
         user_otp.delete()  # Delete OTP after successful password reset
 
-        # Send confirmation email using Celery task
         try:
             send_password_reset_success_email_task.delay(
                 user.email, user.get_full_name() or user.email.split("@")[0]
@@ -301,21 +304,11 @@ class UserDetailAPIView(APIView):
     def get(self, request):
         try:
             user = request.user
-            if not user or not user.is_authenticated:
-                return Response(
-                    {"error": "User not authenticated"},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-
+            serializer = UserSerializer(user)
             return Response(
                 {
                     "message": "User retrieved successfully",
-                    "data": {
-                        "email": user.email,
-                        "first_name": user.first_name,
-                        "last_name": user.last_name,
-                        "username": user.username,
-                    },
+                    "data": serializer.data,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -328,12 +321,6 @@ class UserDetailAPIView(APIView):
     def post(self, request):
         try:
             user = request.user
-            if not user or not user.is_authenticated:
-                return Response(
-                    {"error": "User not authenticated"},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-
             data = request.data
 
             if "email" in data:
@@ -344,6 +331,10 @@ class UserDetailAPIView(APIView):
 
             if "last_name" in data:
                 user.last_name = data["last_name"]
+
+            if "preferred_language" in data:
+                user.preferred_language = data["preferred_language"]
+                user.has_set_preferences = True
 
             user.save()
 
