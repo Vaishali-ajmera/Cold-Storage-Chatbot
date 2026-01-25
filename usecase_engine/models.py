@@ -14,12 +14,14 @@ class UserInput(models.Model):
     intake_data = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Initial user-provided inputs like location, capacity, budget, etc.",
     )
-    starting_suggestions = models.JSONField(
+    suggestions = models.JSONField(
         default=list,
         blank=True,
-        help_text="Stored LLM-generated questions in user's preferred language"
+    )
+    welcome_message = models.TextField(
+        blank=True,
+        null=True,
     )
     is_active = models.BooleanField(default=True)
 

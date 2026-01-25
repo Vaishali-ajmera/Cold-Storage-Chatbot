@@ -306,61 +306,29 @@ class CreateSessionView(APIView):
                 intake_data=active_intake,
                 status=SESSION_ACTIVE,
             )
+            
+            # Ensure intake has pre-generated onboarding content
+            if not active_intake.suggestions or not active_intake.welcome_message:
+                return Response(
+                    {
+                        "error": "Session initialization data missing. Please complete the intake form first."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            # Determine welcome message based on user_choice
-            user_choice = active_intake.user_choice
-            if user_choice == TYPE_BUILD:
-                welcome_message = WELCOME_MESSAGE_BUILD
-            elif user_choice == TYPE_EXISTING:
-                welcome_message = WELCOME_MESSAGE_EXISTING
-            else:
-                welcome_message = WELCOME_MESSAGE_DEFAULT
-
-            # Generate suggested questions
-            from decouple import config
-            from google import genai
-            from google.genai import types
-            from usecase_engine.constants import (
-                SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
-                MODEL_NAME
-            )
-            from usecase_engine.utils import get_suggested_questions_user_prompt
-            import json
-
-            suggested_questions = []
-            api_key = config("GEMINI_API_KEY", default=None)
-
-            if api_key:
-                try:
-                    user_input = get_suggested_questions_user_prompt(
-                        user_choice, active_intake.intake_data
-                    )
-                    client = genai.Client(api_key=api_key)
-
-                    response = client.models.generate_content(
-                        model=MODEL_NAME,
-                        config=types.GenerateContentConfig(
-                            system_instruction=SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
-                            temperature=0.7,
-                            response_mime_type="application/json",
-                        ),
-                        contents=user_input,
-                    )
-
-                    raw_reply = json.loads(response.text)
-                    if isinstance(raw_reply, list):
-                        suggested_questions = raw_reply
-                except Exception as gemini_err:
-                    logger.error(f"Gemini generation failed in CreateSessionView: {gemini_err}")
+            welcome_message = active_intake.welcome_message
+            suggested_questions = active_intake.suggestions
 
             welcome_chat_message = ChatMessage.objects.create(
                 session=session,
                 sender=SENDER_BOT,
                 message_text=welcome_message,
                 message_type=MESSAGE_TYPE_BOT_ANSWER,
-                suggested_questions={"questions": suggested_questions},
+                suggested_questions=suggested_questions,
             )
 
+            
+            
             from chat.models import DailyQuestionQuota
             daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
 

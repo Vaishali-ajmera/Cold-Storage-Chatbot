@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from accounts.constants import DEFAULT_LANGUAGE
 from accounts.models import UserOTP
 from accounts.renders import UserRenderer
 from accounts.serializers import UserSerializer
@@ -57,14 +58,12 @@ class SignupAPIView(APIView):
             last_name = serializer.validated_data.get("last_name", "")
             password = serializer.validated_data["password"]
 
-            # Prevent signup if real user already exists
             if User.objects.filter(email=email).exists():
                 return Response(
                     {"message": "This email is already registered."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Generate unique username
             base_username = email.split("@")[0]
             username = base_username
             counter = 1
@@ -78,17 +77,19 @@ class SignupAPIView(APIView):
                 first_name=first_name,
                 last_name=last_name,
                 is_active=True,
+                preferred_language=request.data.get("preferred_language", DEFAULT_LANGUAGE),
             )
+            if "preferred_language" in request.data:
+                user.has_set_preferences = True
+            
             user.set_password(password)
             user.save()
 
-            # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
             refresh_token = str(refresh)
 
             full_name = f"{first_name} {last_name}".strip()
-            # Send welcome email using Celery task
             try:
                 send_welcome_email_task.delay(email, full_name)
             except Exception as e:
@@ -114,7 +115,7 @@ class SignupAPIView(APIView):
 class EmailLoginAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
-    authentication_classes = []  # Disable authentication for login
+    authentication_classes = []  
 
     def post(self, request):
         email = request.data.get("email")
@@ -157,7 +158,7 @@ class EmailLoginAPIView(APIView):
 class ForgetPasswordRequestAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
-    authentication_classes = []  # Disable authentication for forgot password
+    authentication_classes = []  
 
     def post(self, request):
         email = request.data.get("email")

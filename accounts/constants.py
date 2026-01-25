@@ -20,3 +20,12 @@ LANGUAGE_CHOICES = [
 ]
 
 DEFAULT_LANGUAGE = LANGUAGE_EN
+
+LANGUAGE_MAP = {
+    LANGUAGE_EN: "English",
+    LANGUAGE_HI: "Hindi",
+    LANGUAGE_MR: "Marathi",
+    LANGUAGE_GU: "Gujarati",
+    LANGUAGE_BN: "Bengali",
+    LANGUAGE_PA: "Punjabi",
+}

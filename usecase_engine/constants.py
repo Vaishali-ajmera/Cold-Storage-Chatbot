@@ -13,34 +13,33 @@ ROLE:
 You are a senior cold storage consultant specializing in agricultural cold chains.
 
 GOAL:
-Generate EXACTLY 3 ultra-short, UI-friendly suggested questions for a chatbot.
+1. Localize/Translate the provided "Welcome Message" into the user's PREFERRED LANGUAGE.
+2. Generate EXACTLY 3 ultra-short, UI-friendly suggested focus questions in the same PREFERRED LANGUAGE.
 
-STYLE RULES (STRICT):
-- Each question must be 4–6 words
-- Each must be a complete question
-- Each must end with a question mark
-- One clear idea per question
-- No explanations or extra text
+LANGUAGE:
+Target Language: {{LANGUAGE}}
+If the target language is Hindi, Marathi, etc., use simple, professional agricultural terms that a farmer or cold storage owner would understand.
+
+STYLE RULES (FOR QUESTIONS):
+- Each question must be 4–6 words.
+- Each must be a complete question ending with a question mark.
+- One clear idea per question.
+- No explanations or extra text.
 
 INTENT RULES:
-- EXISTING storage → optimization, cost reduction, efficiency, storage strategy, market timing.
-- BUILD storage → feasibility, design, capacity planning, technology choice, ROI.
+- EXISTING storage → focus on optimization, cost reduction, efficiency, storage strategy, market timing.
+- BUILD storage → focus on feasibility, design, capacity planning, technology choice, ROI.
 
-DOMAIN RULES (CONDITIONAL — NOT HARD-CODED):
-- If the crop variety is processing-grade → focus on sugar control, temperature strategy, and quality retention.
-- If the crop variety is table-grade → focus on sprouting control, weight loss, and shelf life.
-- If electricity or power cost is mentioned → focus on energy optimization (insulation, VFD, solar, refrigeration efficiency).
-- If market timing or price is mentioned → focus on holding period, price trends, and release strategy.
-- If location implies high production or high energy cost → consider regional power tariffs, subsidies, and market behavior.
+STYLE RULES (FOR WELCOME MESSAGE):
+- Maintain the friendly and professional tone of the original message but localize it naturally.
+- Keep the length similar to the original.
 
 OUTPUT FORMAT (STRICT):
-Return ONLY a valid JSON array of exactly 3 strings in the target language.
-Example (English):
-[
-  "How long should storage continue?",
-  "How can sprouting be reduced?",
-  "When is best market release?"
-]
+Return ONLY a valid JSON object with the following structure:
+{
+  "welcome_message": "Localized welcome message text",
+  "suggested_questions": ["Question 1", "Question 2", "Question 3"]
+}
 """
 
 

@@ -13,11 +13,21 @@ from rest_framework.views import APIView
 from accounts.renders import UserRenderer
 from usecase_engine.constants import (
     SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
-    MODEL_NAME
+    MODEL_NAME,
+    TYPE_BUILD, 
+    TYPE_EXISTING
 )
 from usecase_engine.models import UserInput
 from usecase_engine.serializers import UserInputWriteSerializer
-from usecase_engine.utils import get_suggested_questions_user_prompt
+from chat.models import ChatSession, ChatMessage
+from chat.constants import (
+    SESSION_ACTIVE,
+    SENDER_BOT,
+    MESSAGE_TYPE_BOT_ANSWER,
+    WELCOME_MESSAGE_BUILD,
+    WELCOME_MESSAGE_EXISTING,
+    WELCOME_MESSAGE_DEFAULT,
+)
 
 
 class UserInputAPIView(APIView):
@@ -61,16 +71,7 @@ class UserInputAPIView(APIView):
 
             user_input_instance = serializer.save()
 
-            from chat.models import ChatSession, ChatMessage
-            from chat.constants import (
-                SESSION_ACTIVE,
-                SENDER_BOT,
-                MESSAGE_TYPE_BOT_ANSWER,
-                WELCOME_MESSAGE_BUILD,
-                WELCOME_MESSAGE_EXISTING,
-                WELCOME_MESSAGE_DEFAULT,
-            )
-            from usecase_engine.constants import TYPE_BUILD, TYPE_EXISTING
+            
             
             chat_session = ChatSession.objects.create(
                 user=request.user,
@@ -78,45 +79,31 @@ class UserInputAPIView(APIView):
                 status=SESSION_ACTIVE
             )
 
+            # Determine base welcome message
             if user_choice == TYPE_BUILD:
-                welcome_message = WELCOME_MESSAGE_BUILD
+                original_welcome = WELCOME_MESSAGE_BUILD
             elif user_choice == TYPE_EXISTING:
-                welcome_message = WELCOME_MESSAGE_EXISTING
+                original_welcome = WELCOME_MESSAGE_EXISTING
             else:
-                welcome_message = WELCOME_MESSAGE_DEFAULT
+                original_welcome = WELCOME_MESSAGE_DEFAULT
 
-            suggested_questions = []
-            api_key = config("GEMINI_API_KEY", default=None)
+            user_language = request.user.preferred_language
+            
+            from usecase_engine.utils import generate_localized_onboarding_content
+            welcome_message, suggested_questions = generate_localized_onboarding_content(
+                user_choice, intake_data, user_language, original_welcome
+            )
 
-            if api_key:
-                try:
-                    user_input = get_suggested_questions_user_prompt(
-                        user_choice, intake_data
-                    )
-                    client = genai.Client(api_key=api_key)
-
-                    response = client.models.generate_content(
-                        model=MODEL_NAME,
-                        config=types.GenerateContentConfig(
-                            system_instruction=SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
-                            temperature=0.7,
-                            response_mime_type="application/json",
-                        ),
-                        contents=user_input,
-                    )
-
-                    raw_reply = json.loads(response.text)
-                    if isinstance(raw_reply, list):
-                        suggested_questions = raw_reply
-                except Exception as gemini_err:
-                    print(f"Gemini generation failed: {gemini_err}")
+            user_input_instance.suggestions = suggested_questions
+            user_input_instance.welcome_message = welcome_message
+            user_input_instance.save(update_fields=["suggestions", "welcome_message"])
 
             welcome_chat_message = ChatMessage.objects.create(
                 session=chat_session,
                 sender=SENDER_BOT,
                 message_text=welcome_message,
                 message_type=MESSAGE_TYPE_BOT_ANSWER,
-                suggested_questions={"questions": suggested_questions},
+                suggested_questions=suggested_questions,
             )
 
             return Response(
