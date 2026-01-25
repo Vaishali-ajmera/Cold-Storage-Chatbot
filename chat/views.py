@@ -119,7 +119,7 @@ class AnswerMCQView(APIView):
         selected_value = serializer.validated_data["selected_value"]
 
         try:
-            mcq_message = ChatMessage.objects.select_related("session").get(
+            mcq_message = ChatMessage.objects.select_related("session__intake_data").get(
                 id=mcq_message_id
             )
             session = mcq_message.session

@@ -32,16 +32,12 @@ logger = logging.getLogger("chat.service")
 
 
 class ChatService:
-    """
-    Optimized chat service that manages LLM context efficiently.
-    
-    Key optimization: LLM context history is pre-computed and stored on the session.
-    Only ANSWER_DIRECTLY and MCQ conversations are added to context.
-    META and OUT_OF_CONTEXT messages are excluded to keep context focused.
-    """
    
     def __init__(self, session: ChatSession):
+        from accounts.constants import LANGUAGE_MAP
         self.session = session
+        self.user_language_code = session.user.preferred_language
+        self.user_language_full = LANGUAGE_MAP.get(self.user_language_code, "English")
     
     def call_gemini(
         self,
@@ -166,15 +162,13 @@ class ChatService:
         if classification_result == "META":
             result = self._handle_meta_question(
                 question_text,
-                classification.get("meta_subtype", "identity"),
-                classification.get("language", "en")
+                classification.get("meta_subtype", "identity")
             )
             
         elif classification_result == "OUT_OF_CONTEXT":
             result = self._handle_out_of_context(
                 question_text,
-                classification.get("out_of_context_type", "unrelated"),
-                classification.get("language", "en")
+                classification.get("out_of_context_type", "unrelated")
             )
             
         elif classification_result == "NEEDS_FOLLOW_UP":
@@ -190,9 +184,9 @@ class ChatService:
         
         return result
 
-    def _handle_meta_question(self, question_text: str, meta_subtype: str, language: str) -> dict:
+    def _handle_meta_question(self, question_text: str, meta_subtype: str) -> dict:
         system_prompt, user_prompt = get_meta_response_prompt(
-            question_text, meta_subtype, language
+            question_text, meta_subtype, self.user_language_full
         )
 
         meta_response = self.call_gemini(
@@ -220,9 +214,9 @@ class ChatService:
             "remaining_daily_questions": daily_quota.remaining_questions(),
         }
 
-    def _handle_out_of_context(self, question_text: str, out_of_context_type: str, language: str) -> dict:
+    def _handle_out_of_context(self, question_text: str, out_of_context_type: str) -> dict:
         system_prompt, user_prompt = get_out_of_context_response_prompt(
-            question_text, out_of_context_type, language
+            question_text, out_of_context_type, self.user_language_full
         )
 
         redirect_response = self.call_gemini(
@@ -258,7 +252,7 @@ class ChatService:
         llm_context: list
     ) -> dict:
         system_prompt, user_prompt = get_mcq_generator_prompt(
-            intake_data, original_question, missing_field
+            intake_data, original_question, missing_field, self.user_language_full
         )
 
         mcq_data = self.call_gemini(
@@ -297,7 +291,7 @@ class ChatService:
         mcq_response: str = None
     ) -> dict:
         system_prompt, user_prompt = get_answer_generator_prompt(
-            intake_data, llm_context, question_text, mcq_response
+            intake_data, llm_context, question_text, self.user_language_full, mcq_response
         )
 
         answer_data = self.call_gemini(

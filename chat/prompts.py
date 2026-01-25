@@ -26,9 +26,7 @@ def _format_history(chat_history: list) -> str:
 def get_classifier_prompt(intake_data: dict, chat_history: list, user_question: str):
     system_prompt = CHAT_CLASSIFIER_SYSTEM_PROMPT
     intake_text = json.dumps(intake_data, indent=2)
-    # History disabled for now to reduce token usage
-    # history_text = _format_history(chat_history)
-
+    
     user_prompt = f"""USER INTAKE DATA:
                     {intake_text}
 
@@ -41,38 +39,36 @@ def get_classifier_prompt(intake_data: dict, chat_history: list, user_question: 
     return system_prompt, user_prompt
 
 
-def get_meta_response_prompt(user_question: str, meta_subtype: str, language: str):
-    system_prompt = CHAT_META_RESPONSE_SYSTEM_PROMPT
+def get_meta_response_prompt(user_question: str, meta_subtype: str, preferred_language: str):
+    system_prompt = CHAT_META_RESPONSE_SYSTEM_PROMPT.replace("{{LANGUAGE}}", preferred_language)
 
     user_prompt = f"""USER QUESTION:
                     "{user_question}"
 
                     QUESTION TYPE: {meta_subtype}
-                    USER LANGUAGE: {language}
 
-                    Generate a natural, friendly response."""
+                    Generate a natural, friendly response in {preferred_language}."""
     logger.info(f"user prompt meta: {user_prompt}")
 
     return system_prompt, user_prompt
 
 
-def get_out_of_context_response_prompt(user_question: str, out_of_context_type: str, language: str):
-    system_prompt = CHAT_OUT_OF_CONTEXT_RESPONSE_SYSTEM_PROMPT
+def get_out_of_context_response_prompt(user_question: str, out_of_context_type: str, preferred_language: str):
+    system_prompt = CHAT_OUT_OF_CONTEXT_RESPONSE_SYSTEM_PROMPT.replace("{{LANGUAGE}}", preferred_language)
 
     user_prompt = f"""USER QUESTION:
                     "{user_question}"
 
                     OUT_OF_CONTEXT TYPE: {out_of_context_type}
-                    USER LANGUAGE: {language}
 
-                    Generate a brief acknowledgment and polite redirect."""
+                    Generate a brief acknowledgment and polite redirect in {preferred_language}."""
     logger.info(f"user prompt out of context: {user_prompt}")
 
     return system_prompt, user_prompt
 
 
-def get_mcq_generator_prompt(intake_data: dict, user_question: str, missing_field: str):
-    system_prompt = CHAT_MCQ_GENERATOR_SYSTEM_PROMPT
+def get_mcq_generator_prompt(intake_data: dict, user_question: str, missing_field: str, preferred_language: str):
+    system_prompt = CHAT_MCQ_GENERATOR_SYSTEM_PROMPT.replace("{{LANGUAGE}}", preferred_language)
     intake_text = json.dumps(intake_data, indent=2)
 
     user_prompt = f"""USER INTAKE DATA:
@@ -84,7 +80,9 @@ def get_mcq_generator_prompt(intake_data: dict, user_question: str, missing_fiel
                     MISSING FIELD TO COLLECT:
                     {missing_field}
 
-                    Generate an MCQ to collect this missing information."""
+                    TARGET LANGUAGE: {preferred_language}
+
+                    Generate an MCQ in {preferred_language} to collect this missing information."""
     logger.info(f"user prompt mcq: {user_prompt}")
 
     return system_prompt, user_prompt
@@ -94,14 +92,12 @@ def get_answer_generator_prompt(
     intake_data: dict, 
     chat_history: list, 
     user_question: str, 
+    preferred_language: str,
     mcq_response: str = None
 ):
-    system_prompt = CHAT_ANSWER_GENERATOR_SYSTEM_PROMPT
+    system_prompt = CHAT_ANSWER_GENERATOR_SYSTEM_PROMPT.replace("{{LANGUAGE}}", preferred_language)
     intake_text = json.dumps(intake_data, indent=2)
     
-    # History disabled for now to reduce token usage
-    # history_text = _format_history(chat_history)
-
     mcq_text = ""
     if mcq_response:
         mcq_text = f"\n\nUSER'S MCQ RESPONSE:\n{mcq_response}"
@@ -113,7 +109,9 @@ def get_answer_generator_prompt(
                     CURRENT USER QUESTION:
                     "{user_question}"
 
-                    Provide your answer and suggested follow-up questions."""
+                    TARGET LANGUAGE: {preferred_language}
+
+                    Provide your answer and suggested follow-up questions in {preferred_language} only."""
     logger.info(f"user prompt answer: {user_prompt}")
 
     return system_prompt, user_prompt

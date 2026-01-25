@@ -74,7 +74,7 @@ class UserQuestionInputSerializer(serializers.Serializer):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request and request.user:
-            self.fields["session_id"].queryset = ChatSession.objects.filter(
+            self.fields["session_id"].queryset = ChatSession.objects.select_related("user", "intake_data").filter(
                 user=request.user, status=SESSION_ACTIVE
             )
 

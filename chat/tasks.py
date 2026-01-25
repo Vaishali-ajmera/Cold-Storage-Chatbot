@@ -26,7 +26,7 @@ def process_question_task(
     try:
         logger.info(f"[TASK] Processing question for session {session_id}")
         
-        session = ChatSession.objects.get(id=session_id)
+        session = ChatSession.objects.select_related("user").get(id=session_id)
         
         if session.user_id != user_id:
             return {
@@ -105,7 +105,7 @@ def process_mcq_response_task(
     try:
         logger.info(f"[TASK] Processing MCQ response for session {session_id}")
         
-        session = ChatSession.objects.get(id=session_id)
+        session = ChatSession.objects.select_related("user").get(id=session_id)
         
         if session.user_id != user_id:
             return {
