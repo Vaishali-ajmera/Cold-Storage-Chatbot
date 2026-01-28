@@ -3,7 +3,6 @@ import logging
 from celery import shared_task
 
 from chat.constants import (
-    DEFAULT_MAX_DAILY_QUESTIONS,
     MESSAGE_TYPE_USER_QUESTION,
     SENDER_USER,
     SESSION_ACTIVE,
@@ -44,9 +43,11 @@ def process_question_task(
         # Check daily quota
         daily_quota = DailyQuestionQuota.get_or_create_today(session.user)
         if not daily_quota.can_ask_question():
+            from chat.models import get_max_daily_questions
+            max_questions = get_max_daily_questions()
             return {
                 "success": False,
-                "error": f"You've reached your daily limit of {DEFAULT_MAX_DAILY_QUESTIONS} questions. Please try again tomorrow.",
+                "error": f"You've reached your daily limit of {max_questions} questions. Please try again tomorrow.",
                 "daily_limit_reached": True,
             }
 

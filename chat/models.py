@@ -10,6 +10,7 @@ from chat.constants import (
     SENDER_CHOICES,
     SESSION_ACTIVE,
     SESSION_STATUS_CHOICES,
+    DEFAULT_MAX_DAILY_QUESTIONS,
 )
 from usecase_engine.models import UserInput
 
@@ -21,9 +22,9 @@ def get_max_daily_questions():
         config = SystemConfiguration.get_config()
         if config:
             return config.max_daily_questions
-        return 10
+        return DEFAULT_MAX_DAILY_QUESTIONS
     except Exception:
-        return 10
+        return DEFAULT_MAX_DAILY_QUESTIONS
 
 
 class DailyQuestionQuota(models.Model):
@@ -55,23 +56,19 @@ class DailyQuestionQuota(models.Model):
         )
 
     def can_ask_question(self):
-        """Check if user can ask more questions today"""
         max_questions = get_max_daily_questions()
         return self.question_count < max_questions
 
     def remaining_questions(self):
-        """Get the number of questions remaining for today"""
         max_questions = get_max_daily_questions()
         return max(0, max_questions - self.question_count)
 
     def increment_count(self):
-        """Increment the daily question count"""
         self.question_count += 1
         self.save(update_fields=["question_count", "updated_at"])
 
     @classmethod
     def get_or_create_today(cls, user):
-        """Get or create today's quota record for a user"""
         today = timezone.now().date()
         quota, created = cls.objects.get_or_create(
             user=user, date=today, defaults={"question_count": 0}

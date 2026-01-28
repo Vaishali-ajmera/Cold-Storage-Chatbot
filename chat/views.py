@@ -36,15 +36,15 @@ class AskQuestionView(APIView):
         question = serializer.validated_data["question"]
         session = serializer.validated_data.get("session_id")
 
-        from chat.constants import DEFAULT_MAX_DAILY_QUESTIONS
-        from chat.models import DailyQuestionQuota
+        from chat.models import DailyQuestionQuota, get_max_daily_questions
 
         daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
 
         if not daily_quota.can_ask_question():
+            max_questions = get_max_daily_questions()
             return Response(
                 {
-                    "message": f"You've reached your daily limit of {DEFAULT_MAX_DAILY_QUESTIONS} questions. Please try again tomorrow.",
+                    "message": f"You've reached your daily limit of {max_questions} questions. Please try again tomorrow.",
                     "data": {
                         "error_code": "DAILY_QUOTA_EXCEEDED",
                         "remaining_daily_questions": 0,

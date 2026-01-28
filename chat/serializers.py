@@ -69,8 +69,8 @@ class UserQuestionInputSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         error_messages={
-            "does_not_exist": "You've reached the maximum of 4 questions per session. Please start a new chat to continue.",
-            "invalid": "You've reached the maximum of 4 questions per session. Please start a new chat to continue.",
+            "does_not_exist": "Session not found or is no longer active.",
+            "invalid": "Invalid session ID.",
         },
     )
 
@@ -114,7 +114,7 @@ class UserMCQResponseSerializer(serializers.Serializer):
 
         if mcq_message.session.status != SESSION_ACTIVE:
             raise serializers.ValidationError(
-                "You've reached the maximum of 4 questions per session. Please start a new chat to continue."
+                "This session is no longer active. Please start a new chat to continue."
             )
 
         if not mcq_message.mcq_options:
