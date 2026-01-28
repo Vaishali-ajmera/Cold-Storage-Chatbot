@@ -19,7 +19,9 @@ def get_max_daily_questions():
         from accounts.models import SystemConfiguration
 
         config = SystemConfiguration.get_config()
-        return config.max_daily_questions
+        if config:
+            return config.max_daily_questions
+        return 10
     except Exception:
         return 10
 

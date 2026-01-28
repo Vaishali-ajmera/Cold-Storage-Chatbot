@@ -55,19 +55,11 @@ class SystemConfiguration(models.Model):
         default=LENGTH_MODERATE,
     )
 
-    max_daily_questions = models.PositiveIntegerField(
-        default=10
-    )
+    max_daily_questions = models.PositiveIntegerField(default=10)
 
-    additional_context = models.TextField(
-        blank=True,
-        default="",
-        help_text="Additional context or information to include in bot responses",
-    )
+    additional_context = models.TextField(blank=True, default="")
 
-    custom_instructions = models.TextField(
-        blank=True, default="", help_text="Custom instructions for the bot behavior"
-    )
+    custom_instructions = models.TextField(blank=True, default="")
 
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
@@ -87,5 +79,13 @@ class SystemConfiguration(models.Model):
 
     @classmethod
     def get_config(cls):
-        config, created = cls.objects.get_or_create(pk=1)
-        return config
+        """Returns config if exists, else None (0 or 1 record only)"""
+        try:
+            return cls.objects.get(pk=1)
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
+    def config_exists(cls):
+        """Check if config exists"""
+        return cls.objects.filter(pk=1).exists()
