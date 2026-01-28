@@ -106,4 +106,5 @@ class DailyQuestionQuotaAdmin(admin.ModelAdmin):
 
     def remaining_questions(self, obj):
         return obj.remaining_questions()
+
     remaining_questions.short_description = "Remaining"

@@ -36,7 +36,7 @@ SESSION_STATUS_CHOICES = [
 ]
 
 # Configuration
-DEFAULT_MAX_DAILY_QUESTIONS = 10  
+DEFAULT_MAX_DAILY_QUESTIONS = 10
 DEFAULT_SESSION_TIMEOUT_HOURS = 24
 
 # LLM Model Configuration
@@ -56,9 +56,7 @@ WELCOME_MESSAGE_EXISTING = (
     "I'll help you optimize your cold storage operations. What can I help you with?"
 )
 
-WELCOME_MESSAGE_DEFAULT = (
-    "Hello! I'm Alu Mitra, your potato cold storage advisor. 🥔 How can I help you today?"
-)
+WELCOME_MESSAGE_DEFAULT = "Hello! I'm Alu Mitra, your potato cold storage advisor. 🥔 How can I help you today?"
 
 
 # =============================================================================

@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+
 User = get_user_model()
 from rest_framework import serializers
 
@@ -33,7 +34,7 @@ class ChatSessionSerializer(serializers.ModelSerializer):
         ]
 
     def _get_quota(self, obj):
-        if not hasattr(obj, '_cached_quota'):
+        if not hasattr(obj, "_cached_quota"):
             obj._cached_quota = DailyQuestionQuota.get_or_create_today(obj.user)
         return obj._cached_quota
 
@@ -77,9 +78,9 @@ class UserQuestionInputSerializer(serializers.Serializer):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request and request.user:
-            self.fields["session_id"].queryset = ChatSession.objects.select_related("user", "intake_data").filter(
-                user=request.user, status=SESSION_ACTIVE
-            )
+            self.fields["session_id"].queryset = ChatSession.objects.select_related(
+                "user", "intake_data"
+            ).filter(user=request.user, status=SESSION_ACTIVE)
 
     def validate_question(self, value):
         """Validate question is not empty"""

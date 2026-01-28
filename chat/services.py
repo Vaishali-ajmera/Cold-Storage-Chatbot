@@ -8,7 +8,7 @@ from google import genai
 from google.genai import types
 
 from chat.constants import (
-    DEFAULT_MAX_DAILY_QUESTIONS,
+    LLM_MODEL_NAME,
     MESSAGE_TYPE_BOT_ANSWER,
     MESSAGE_TYPE_BOT_MCQ,
     MESSAGE_TYPE_BOT_REJECTION,
@@ -16,7 +16,6 @@ from chat.constants import (
     MESSAGE_TYPE_USER_QUESTION,
     SENDER_BOT,
     SENDER_USER,
-    LLM_MODEL_NAME,
 )
 from chat.models import ChatMessage, ChatSession, DailyQuestionQuota
 from chat.prompts import (
@@ -32,32 +31,33 @@ logger = logging.getLogger("chat.service")
 
 
 class ChatService:
-   
+
     def __init__(self, session: ChatSession):
         from accounts.constants import LANGUAGE_MAP
+
         self.session = session
         self.user_language_code = session.user.preferred_language
         self.user_language_full = LANGUAGE_MAP.get(self.user_language_code, "English")
-    
+
     def call_gemini(
         self,
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.3,
-        purpose: str = "unknown",  
+        purpose: str = "unknown",
     ) -> dict:
         api_key = config("GEMINI_API_KEY", default=None)
-        
+
         if not api_key:
             raise Exception("GEMINI_API_KEY not configured in environment")
-        
+
         max_retries = 3
         last_error = None
-        
+
         for attempt in range(1, max_retries + 1):
             try:
                 client = genai.Client(api_key=api_key)
-                
+
                 response = client.models.generate_content(
                     model=LLM_MODEL_NAME,
                     config=types.GenerateContentConfig(
@@ -67,14 +67,14 @@ class ChatService:
                     ),
                     contents=user_prompt,
                 )
-                
-                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+
+                if hasattr(response, "usage_metadata") and response.usage_metadata:
                     usage = response.usage_metadata
-                    prompt_tokens = getattr(usage, 'prompt_token_count', 0) or 0
-                    candidates_tokens = getattr(usage, 'candidates_token_count', 0) or 0
-                    thoughts_tokens = getattr(usage, 'thoughts_token_count', 0) or 0
-                    total_tokens = getattr(usage, 'total_token_count', 0) or 0
-                    
+                    prompt_tokens = getattr(usage, "prompt_token_count", 0) or 0
+                    candidates_tokens = getattr(usage, "candidates_token_count", 0) or 0
+                    thoughts_tokens = getattr(usage, "thoughts_token_count", 0) or 0
+                    total_tokens = getattr(usage, "total_token_count", 0) or 0
+
                     logger.info(
                         f"[{purpose}] Token Usage:\n"
                         f"   ├─ Prompt (input):    {prompt_tokens:,} tokens\n"
@@ -82,10 +82,10 @@ class ChatService:
                         f"   ├─ Thinking:          {thoughts_tokens:,} tokens\n"
                         f"   └─ Total:             {total_tokens:,} tokens"
                     )
-                
+
                 result = json.loads(response.text)
                 return result
-                
+
             except json.JSONDecodeError as e:
                 last_error = e
                 logger.error(
@@ -96,92 +96,96 @@ class ChatService:
                 if attempt < max_retries:
                     time.sleep(1 * attempt)
                     continue
-                    
+
             except Exception as e:
                 last_error = e
                 error_str = str(e).lower()
-                
+
                 # Check if it's a quota/rate limit error - DON'T retry these
-                if "429" in error_str or "quota" in error_str or "resource_exhausted" in error_str:
+                if (
+                    "429" in error_str
+                    or "quota" in error_str
+                    or "resource_exhausted" in error_str
+                ):
                     logger.error(
                         f"[{purpose}] Quota Exceeded - NOT retrying:\n"
                         f"   ├─ Type: {type(e).__name__}\n"
                         f"   └─ Message: {str(e)[:200]}..."
                     )
                     raise e  # Fail immediately, no retry
-                
+
                 logger.error(
                     f"[{purpose}] API Error (attempt {attempt}/{max_retries}):\n"
                     f"   ├─ Type: {type(e).__name__}\n"
                     f"   └─ Message: {str(e)}"
                 )
-                
+
                 # Retry on timeout or 500 errors
                 if any(x in error_str for x in ["timeout", "500"]):
                     if attempt < max_retries:
-                        time.sleep(2 ** attempt)
+                        time.sleep(2**attempt)
                         continue
-                
+
                 # For other errors, don't retry
                 break
-        
-        logger.error(f"[{purpose}] All retries exhausted. Final error: {type(last_error).__name__}: {str(last_error)}")
+
+        logger.error(
+            f"[{purpose}] All retries exhausted. Final error: {type(last_error).__name__}: {str(last_error)}"
+        )
         raise last_error
 
     @transaction.atomic
     def process_user_question(self, question_text: str, intake_data: dict) -> dict:
-        logger.info(f"📝 User prompt: {question_text[:100]}{'...' if len(question_text) > 100 else ''}")
-        
+        logger.info(
+            f"📝 User prompt: {question_text[:100]}{'...' if len(question_text) > 100 else ''}"
+        )
+
         ChatMessage.objects.create(
             session=self.session,
             sender=SENDER_USER,
             message_text=question_text,
             message_type=MESSAGE_TYPE_USER_QUESTION,
         )
-        
+
         # Note: Daily quota is already checked and incremented in views/tasks
         # No need to increment here
-        
+
         llm_context = self.session.get_llm_context()
-        
+
         system_prompt, user_prompt = get_classifier_prompt(
             intake_data, llm_context, question_text
         )
-        
+
         classification = self.call_gemini(
-            system_prompt, 
+            system_prompt,
             user_prompt,
             temperature=0.3,
             purpose="CLASSIFIER",
         )
-        
+
         classification_result = classification.get("classification", "ANSWER_DIRECTLY")
-        
+
         logger.info(f"🔍 Classifier result: {classification_result}")
-        
+
         if classification_result == "META":
             result = self._handle_meta_question(
-                question_text,
-                classification.get("meta_subtype", "identity")
+                question_text, classification.get("meta_subtype", "identity")
             )
-            
+
         elif classification_result == "OUT_OF_CONTEXT":
             result = self._handle_out_of_context(
-                question_text,
-                classification.get("out_of_context_type", "unrelated")
+                question_text, classification.get("out_of_context_type", "unrelated")
             )
-            
+
         elif classification_result == "NEEDS_FOLLOW_UP":
             missing_field = classification.get("missing_field", "unknown")
             result = self._handle_needs_followup(
                 question_text, missing_field, intake_data, llm_context
             )
-            
+
         else:  # ANSWER_DIRECTLY
-            result = self._handle_direct_answer(
-                question_text, intake_data, llm_context
-            )
-        
+            result = self._handle_direct_answer(question_text, intake_data, llm_context)
+
         return result
 
     def _handle_meta_question(self, question_text: str, meta_subtype: str) -> dict:
@@ -190,7 +194,7 @@ class ChatService:
         )
 
         meta_response = self.call_gemini(
-            system_prompt, 
+            system_prompt,
             user_prompt,
             temperature=0.7,
             purpose="META_RESPONSE",
@@ -214,13 +218,15 @@ class ChatService:
             "remaining_daily_questions": daily_quota.remaining_questions(),
         }
 
-    def _handle_out_of_context(self, question_text: str, out_of_context_type: str) -> dict:
+    def _handle_out_of_context(
+        self, question_text: str, out_of_context_type: str
+    ) -> dict:
         system_prompt, user_prompt = get_out_of_context_response_prompt(
             question_text, out_of_context_type, self.user_language_full
         )
 
         redirect_response = self.call_gemini(
-            system_prompt, 
+            system_prompt,
             user_prompt,
             temperature=0.7,
             purpose="OUT_OF_CONTEXT_RESPONSE",
@@ -245,18 +251,18 @@ class ChatService:
         }
 
     def _handle_needs_followup(
-        self, 
-        original_question: str, 
-        missing_field: str, 
+        self,
+        original_question: str,
+        missing_field: str,
         intake_data: dict,
-        llm_context: list
+        llm_context: list,
     ) -> dict:
         system_prompt, user_prompt = get_mcq_generator_prompt(
             intake_data, original_question, missing_field, self.user_language_full
         )
 
         mcq_data = self.call_gemini(
-            system_prompt, 
+            system_prompt,
             user_prompt,
             temperature=0.3,
             purpose="MCQ_GENERATOR",
@@ -284,19 +290,23 @@ class ChatService:
         }
 
     def _handle_direct_answer(
-        self, 
-        question_text: str, 
-        intake_data: dict, 
-        llm_context: list, 
-        mcq_response: str = None
+        self,
+        question_text: str,
+        intake_data: dict,
+        llm_context: list,
+        mcq_response: str = None,
     ) -> dict:
         system_prompt, user_prompt = get_answer_generator_prompt(
-            intake_data, llm_context, question_text, self.user_language_full, mcq_response
+            intake_data,
+            llm_context,
+            question_text,
+            self.user_language_full,
+            mcq_response,
         )
 
         answer_data = self.call_gemini(
-            system_prompt, 
-            user_prompt, 
+            system_prompt,
+            user_prompt,
             temperature=0.7,
             purpose="ANSWER_GENERATOR",
         )
@@ -325,13 +335,10 @@ class ChatService:
 
     @transaction.atomic
     def process_mcq_response(
-        self, 
-        mcq_message_id: str, 
-        selected_value: str, 
-        intake_data: dict
+        self, mcq_message_id: str, selected_value: str, intake_data: dict
     ) -> dict:
         logger.info(f"📝 User MCQ selection: {selected_value}")
-        
+
         mcq_message = ChatMessage.objects.get(id=mcq_message_id)
 
         ChatMessage.objects.create(
@@ -354,14 +361,14 @@ class ChatService:
             if original_question_msg
             else "Previous question"
         )
-        
+
         llm_context = self.session.get_llm_context()
-        
+
         result = self._handle_direct_answer(
             original_question,
             intake_data,
             llm_context,
             mcq_response=f"User selected: {selected_value}",
         )
-        
+
         return result

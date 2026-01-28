@@ -36,11 +36,11 @@ class AskQuestionView(APIView):
         question = serializer.validated_data["question"]
         session = serializer.validated_data.get("session_id")
 
-        from chat.models import DailyQuestionQuota
         from chat.constants import DEFAULT_MAX_DAILY_QUESTIONS
-        
+        from chat.models import DailyQuestionQuota
+
         daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
-        
+
         if not daily_quota.can_ask_question():
             return Response(
                 {
@@ -48,7 +48,7 @@ class AskQuestionView(APIView):
                     "data": {
                         "error_code": "DAILY_QUOTA_EXCEEDED",
                         "remaining_daily_questions": 0,
-                    }
+                    },
                 },
                 status=status.HTTP_200_OK,
             )
@@ -119,9 +119,9 @@ class AnswerMCQView(APIView):
         selected_value = serializer.validated_data["selected_value"]
 
         try:
-            mcq_message = ChatMessage.objects.select_related("session__intake_data").get(
-                id=mcq_message_id
-            )
+            mcq_message = ChatMessage.objects.select_related(
+                "session__intake_data"
+            ).get(id=mcq_message_id)
             session = mcq_message.session
 
             if session.user != request.user:
@@ -276,15 +276,15 @@ class CreateSessionView(APIView):
 
     def post(self, request):
         try:
-            from usecase_engine.models import UserInput
-            from usecase_engine.constants import TYPE_BUILD, TYPE_EXISTING
             from chat.constants import (
-                WELCOME_MESSAGE_BUILD,
-                WELCOME_MESSAGE_EXISTING,
-                WELCOME_MESSAGE_DEFAULT,
                 MESSAGE_TYPE_BOT_ANSWER,
                 SENDER_BOT,
+                WELCOME_MESSAGE_BUILD,
+                WELCOME_MESSAGE_DEFAULT,
+                WELCOME_MESSAGE_EXISTING,
             )
+            from usecase_engine.constants import TYPE_BUILD, TYPE_EXISTING
+            from usecase_engine.models import UserInput
 
             active_intake = UserInput.objects.filter(
                 user=request.user, is_active=True
@@ -304,7 +304,7 @@ class CreateSessionView(APIView):
                 intake_data=active_intake,
                 status=SESSION_ACTIVE,
             )
-            
+
             # Ensure intake has pre-generated onboarding content
             if not active_intake.suggestions or not active_intake.welcome_message:
                 return Response(
@@ -325,9 +325,8 @@ class CreateSessionView(APIView):
                 suggested_questions=suggested_questions,
             )
 
-            
-            
             from chat.models import DailyQuestionQuota
+
             daily_quota = DailyQuestionQuota.get_or_create_today(request.user)
 
             return Response(
@@ -350,7 +349,7 @@ class CreateSessionView(APIView):
             )
 
         except Exception as e:
-           return Response(
+            return Response(
                 {"error": f"Failed to create session: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
@@ -363,10 +362,10 @@ class TaskStatusView(APIView):
     def get(self, request, task_id):
         try:
             result = AsyncResult(task_id, app=celery_app)
-            
+
             if result.successful():
                 task_result = result.result
-                
+
                 if task_result and task_result.get("success"):
                     return Response(
                         {
@@ -380,14 +379,20 @@ class TaskStatusView(APIView):
                                 "suggestions": task_result.get("suggestions"),
                                 "mcq": task_result.get("mcq"),
                                 "mcq_message_id": task_result.get("mcq_message_id"),
-                                "remaining_daily_questions": task_result.get("remaining_daily_questions"),
+                                "remaining_daily_questions": task_result.get(
+                                    "remaining_daily_questions"
+                                ),
                             },
                         },
                         status=status.HTTP_200_OK,
                     )
                 else:
                     # Task completed but with error (e.g., quota exceeded)
-                    error_code = "DAILY_QUOTA_EXCEEDED" if task_result.get("daily_limit_reached") else "TASK_FAILED"
+                    error_code = (
+                        "DAILY_QUOTA_EXCEEDED"
+                        if task_result.get("daily_limit_reached")
+                        else "TASK_FAILED"
+                    )
                     return Response(
                         {
                             "message": task_result.get("error", "Task failed"),
@@ -403,7 +408,9 @@ class TaskStatusView(APIView):
             elif result.failed():
                 return Response(
                     {
-                        "message": str(result.result) if result.result else "Task failed",
+                        "message": (
+                            str(result.result) if result.result else "Task failed"
+                        ),
                         "data": {
                             "task_id": task_id,
                             "task_status": "FAILURE",
@@ -458,4 +465,3 @@ class TaskStatusView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
