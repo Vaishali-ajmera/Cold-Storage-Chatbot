@@ -8,11 +8,22 @@ User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    is_admin = serializers.BooleanField(source="is_staff", read_only=True)
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "first_name", "last_name", "password", "preferred_language", "has_set_preferences"]
-        read_only_fields = ["id", "username", "has_set_preferences"]
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "password",
+            "preferred_language",
+            "has_set_preferences",
+            "is_admin",
+        ]
+        read_only_fields = ["id", "username", "has_set_preferences", "is_admin"]
 
     def validate_email(self, value):
         try:

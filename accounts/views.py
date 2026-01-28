@@ -77,11 +77,13 @@ class SignupAPIView(APIView):
                 first_name=first_name,
                 last_name=last_name,
                 is_active=True,
-                preferred_language=request.data.get("preferred_language", DEFAULT_LANGUAGE),
+                preferred_language=request.data.get(
+                    "preferred_language", DEFAULT_LANGUAGE
+                ),
             )
             if "preferred_language" in request.data:
                 user.has_set_preferences = True
-            
+
             user.set_password(password)
             user.save()
 
@@ -115,7 +117,7 @@ class SignupAPIView(APIView):
 class EmailLoginAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
-    authentication_classes = []  
+    authentication_classes = []
 
     def post(self, request):
         email = request.data.get("email")
@@ -158,7 +160,7 @@ class EmailLoginAPIView(APIView):
 class ForgetPasswordRequestAPIView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [AllowAny]
-    authentication_classes = []  
+    authentication_classes = []
 
     def post(self, request):
         email = request.data.get("email")

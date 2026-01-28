@@ -15,17 +15,12 @@ from usecase_engine.models import UserInput
 
 
 def get_max_daily_questions():
-    """
-    Get the configured max daily questions from system config.
-    Import here to avoid circular imports.
-    """
     try:
         from accounts.models import SystemConfiguration
 
         config = SystemConfiguration.get_config()
         return config.max_daily_questions
     except Exception:
-        # Fallback if config not yet created
         return 10
 
 
