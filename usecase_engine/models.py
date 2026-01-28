@@ -6,7 +6,9 @@ from usecase_engine.constants import USER_CHOICES
 
 class UserInput(models.Model):
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="cold_storage_intakes"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="cold_storage_intakes",
     )
 
     user_choice = models.CharField(max_length=30, choices=USER_CHOICES)

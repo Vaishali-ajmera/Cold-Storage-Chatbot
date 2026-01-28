@@ -60,4 +60,3 @@ RESPONSE FORMAT:
 }
 
 """
-

@@ -1,14 +1,15 @@
 import json
+
 from decouple import config
 from google import genai
 from google.genai import types
-from usecase_engine.constants import (
-    SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
-    MODEL_NAME
-)
+
+from usecase_engine.constants import MODEL_NAME, SUGGESTED_QUESTIONS_SYSTEM_PROMPT
 
 
-def get_suggested_questions_user_prompt(user_choice_key, intake_data, preferred_language, original_welcome_message):
+def get_suggested_questions_user_prompt(
+    user_choice_key, intake_data, preferred_language, original_welcome_message
+):
     intent_map = {
         "build": "User Intent: Build a NEW cold storage facility for potato crop.",
         "existing": "User Intent: Optimize an EXISTING cold storage facility for potato crop.",
@@ -32,8 +33,11 @@ TASK:
 """
 
 
-def generate_localized_onboarding_content(user_choice, intake_data, preferred_language, original_welcome):
+def generate_localized_onboarding_content(
+    user_choice, intake_data, preferred_language, original_welcome
+):
     from accounts.constants import LANGUAGE_MAP
+
     welcome_message = original_welcome
     suggested_questions = []
 
@@ -67,9 +71,10 @@ def generate_localized_onboarding_content(user_choice, intake_data, preferred_la
         if isinstance(raw_reply, dict):
             welcome_message = raw_reply.get("welcome_message", original_welcome)
             suggested_questions = raw_reply.get("suggested_questions", [])
-            
+
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.error(f"Gemini generation failed: {e}")
 

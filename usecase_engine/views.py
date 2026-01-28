@@ -11,23 +11,23 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.renders import UserRenderer
+from chat.constants import (
+    MESSAGE_TYPE_BOT_ANSWER,
+    SENDER_BOT,
+    SESSION_ACTIVE,
+    WELCOME_MESSAGE_BUILD,
+    WELCOME_MESSAGE_DEFAULT,
+    WELCOME_MESSAGE_EXISTING,
+)
+from chat.models import ChatMessage, ChatSession
 from usecase_engine.constants import (
-    SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
     MODEL_NAME,
-    TYPE_BUILD, 
-    TYPE_EXISTING
+    SUGGESTED_QUESTIONS_SYSTEM_PROMPT,
+    TYPE_BUILD,
+    TYPE_EXISTING,
 )
 from usecase_engine.models import UserInput
 from usecase_engine.serializers import UserInputWriteSerializer
-from chat.models import ChatSession, ChatMessage
-from chat.constants import (
-    SESSION_ACTIVE,
-    SENDER_BOT,
-    MESSAGE_TYPE_BOT_ANSWER,
-    WELCOME_MESSAGE_BUILD,
-    WELCOME_MESSAGE_EXISTING,
-    WELCOME_MESSAGE_DEFAULT,
-)
 
 
 class UserInputAPIView(APIView):
@@ -37,7 +37,7 @@ class UserInputAPIView(APIView):
     def post(self, request):
         user_choice = request.data.get("user_choice")
         intake_data = request.data.get("intake_data")
-        is_active = request.data.get("is_active", True)  
+        is_active = request.data.get("is_active", True)
 
         if not user_choice:
             return Response(
@@ -71,12 +71,10 @@ class UserInputAPIView(APIView):
 
             user_input_instance = serializer.save()
 
-            
-            
             chat_session = ChatSession.objects.create(
                 user=request.user,
                 intake_data=user_input_instance,
-                status=SESSION_ACTIVE
+                status=SESSION_ACTIVE,
             )
 
             # Determine base welcome message
@@ -88,10 +86,13 @@ class UserInputAPIView(APIView):
                 original_welcome = WELCOME_MESSAGE_DEFAULT
 
             user_language = request.user.preferred_language
-            
+
             from usecase_engine.utils import generate_localized_onboarding_content
-            welcome_message, suggested_questions = generate_localized_onboarding_content(
-                user_choice, intake_data, user_language, original_welcome
+
+            welcome_message, suggested_questions = (
+                generate_localized_onboarding_content(
+                    user_choice, intake_data, user_language, original_welcome
+                )
             )
 
             user_input_instance.suggestions = suggested_questions
