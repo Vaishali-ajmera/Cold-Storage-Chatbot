@@ -16,7 +16,7 @@ LANGUAGE_CHOICES = [
     (LANGUAGE_MR, "Marathi (मराठी)"),
     (LANGUAGE_GU, "Gujarati (ગુજરાતી)"),
     (LANGUAGE_BN, "Bengali (বাংলা)"),
-    (LANGUAGE_PA, "Punjabi (ਪੰਜਾਬੀ)")
+    (LANGUAGE_PA, "Punjabi (ਪੰਜਾਬੀ)"),
 ]
 
 DEFAULT_LANGUAGE = LANGUAGE_EN
@@ -29,3 +29,27 @@ LANGUAGE_MAP = {
     LANGUAGE_BN: "Bengali",
     LANGUAGE_PA: "Punjabi",
 }
+
+# Response Tone Choices
+TONE_FRIENDLY = "friendly"
+TONE_PROFESSIONAL = "professional"
+TONE_FORMAL = "formal"
+TONE_CASUAL = "casual"
+
+TONE_CHOICES = [
+    (TONE_FRIENDLY, "Friendly"),
+    (TONE_PROFESSIONAL, "Professional"),
+    (TONE_FORMAL, "Formal"),
+    (TONE_CASUAL, "Casual"),
+]
+
+# Response Length Choices
+LENGTH_CONCISE = "concise"
+LENGTH_MODERATE = "moderate"
+LENGTH_DETAILED = "detailed"
+
+LENGTH_CHOICES = [
+    (LENGTH_CONCISE, "Concise (Short & Direct)"),
+    (LENGTH_MODERATE, "Moderate (Balanced)"),
+    (LENGTH_DETAILED, "Detailed (Comprehensive)"),
+]

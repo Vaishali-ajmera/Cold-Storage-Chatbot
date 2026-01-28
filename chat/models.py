@@ -5,7 +5,6 @@ from django.db import models
 from django.utils import timezone
 
 from chat.constants import (
-    DEFAULT_MAX_DAILY_QUESTIONS,
     MESSAGE_TYPE_CHOICES,
     SENDER_BOT,
     SENDER_CHOICES,
@@ -15,53 +14,70 @@ from chat.constants import (
 from usecase_engine.models import UserInput
 
 
+def get_max_daily_questions():
+    """
+    Get the configured max daily questions from system config.
+    Import here to avoid circular imports.
+    """
+    try:
+        from accounts.models import SystemConfiguration
+
+        config = SystemConfiguration.get_config()
+        return config.max_daily_questions
+    except Exception:
+        # Fallback if config not yet created
+        return 10
+
+
 class DailyQuestionQuota(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="daily_quotas",
     )
-    
+
     date = models.DateField(
         help_text="The date for which this quota applies (local date)"
     )
-    
+
     question_count = models.PositiveIntegerField(
-        default=0,
-        help_text="Number of questions asked on this date"
+        default=0, help_text="Number of questions asked on this date"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         unique_together = ["user", "date"]
         ordering = ["-date"]
-    
+
     def __str__(self):
-        return f"{self.user.username} - {self.date}: {self.question_count}/{DEFAULT_MAX_DAILY_QUESTIONS}"
-    
+        max_questions = get_max_daily_questions()
+        return (
+            f"{self.user.username} - {self.date}: {self.question_count}/{max_questions}"
+        )
+
     def can_ask_question(self):
         """Check if user can ask more questions today"""
-        return self.question_count < DEFAULT_MAX_DAILY_QUESTIONS
-    
+        max_questions = get_max_daily_questions()
+        return self.question_count < max_questions
+
     def remaining_questions(self):
         """Get the number of questions remaining for today"""
-        return max(0, DEFAULT_MAX_DAILY_QUESTIONS - self.question_count)
-    
+        max_questions = get_max_daily_questions()
+        return max(0, max_questions - self.question_count)
+
     def increment_count(self):
         """Increment the daily question count"""
         self.question_count += 1
         self.save(update_fields=["question_count", "updated_at"])
-    
+
     @classmethod
     def get_or_create_today(cls, user):
         """Get or create today's quota record for a user"""
         today = timezone.now().date()
         quota, created = cls.objects.get_or_create(
-            user=user,
-            date=today,
-            defaults={"question_count": 0}
+            user=user, date=today, defaults={"question_count": 0}
         )
         return quota
 
@@ -118,6 +134,7 @@ class ChatSession(models.Model):
 
     def is_active(self):
         return self.status == SESSION_ACTIVE
+
     def get_llm_context(self, limit=10):
         history = self.llm_context_history or []
         return history[-limit:] if len(history) > limit else history
@@ -125,16 +142,13 @@ class ChatSession(models.Model):
     def append_to_llm_context(self, sender: str, message: str):
         if self.llm_context_history is None:
             self.llm_context_history = []
-        
-        self.llm_context_history.append({
-            "sender": sender,
-            "message": message
-        })
-        
+
+        self.llm_context_history.append({"sender": sender, "message": message})
+
         # Keep only last 20 messages to prevent unlimited growth
         if len(self.llm_context_history) > 20:
             self.llm_context_history = self.llm_context_history[-20:]
-        
+
         self.save(update_fields=["llm_context_history"])
 
     def set_title_from_question(self, question):
