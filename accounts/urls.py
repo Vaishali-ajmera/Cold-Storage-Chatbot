@@ -6,6 +6,7 @@ from accounts.admin_views import (
     ConfigurationChoicesAPIView,
     SystemConfigurationAPIView,
 )
+from accounts.sso_views import SSOVerifyTokenAPIView
 from accounts.views import (
     EmailLoginAPIView,
     ForgetPasswordRequestAPIView,
@@ -34,4 +35,6 @@ urlpatterns = [
         name="admin-config-choices",
     ),
     path("settings/stats/", AdminStatsAPIView.as_view(), name="admin-stats"),
+    path("sso/verify-token/", SSOVerifyTokenAPIView.as_view(), name="sso-verify-token"),
 ]
+

@@ -275,3 +275,8 @@ LOGGING = {
         },
     },
 }
+
+# SSO Configuration
+SSO_SECRET_KEY = config("SSO_SECRET_KEY")
+SSO_EMAIL_DOMAIN = config("SSO_EMAIL_DOMAIN", default="sso.cold-storage.local")
+

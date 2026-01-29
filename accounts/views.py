@@ -1,4 +1,3 @@
-# authentication/views.py
 import logging
 from datetime import timedelta
 
@@ -24,25 +23,11 @@ from accounts.tasks import (
     send_password_reset_success_email_task,
     send_welcome_email_task,
 )
+from accounts.utils import get_user_data, phone_to_email
 
 
 def generate_otp():
     return get_random_string(length=6, allowed_chars="0123456789")
-
-
-def get_user_data(user):
-    """
-    Helper function to return standardized user data for login/signup responses.
-    """
-    return {
-        "id": user.id,
-        "username": user.username,
-        "email": user.email,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "preferred_language": user.preferred_language,
-        "has_set_preferences": user.has_set_preferences,
-    }
 
 
 class SignupAPIView(APIView):
@@ -389,3 +374,4 @@ class UserDetailAPIView(APIView):
                 {"error": f"Failed to update user: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
