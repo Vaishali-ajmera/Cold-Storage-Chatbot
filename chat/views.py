@@ -359,6 +359,15 @@ class TaskStatusView(APIView):
     renderer_classes = [UserRenderer]
     permission_classes = [IsAuthenticated]
 
+    def _validate_session_ownership(self, session_id, user):
+        if not session_id:
+            return True
+        try:
+            ChatSession.objects.get(id=session_id, user=user)
+            return True
+        except ChatSession.DoesNotExist:
+            return False
+
     def get(self, request, task_id):
         try:
             result = AsyncResult(task_id, app=celery_app)
@@ -367,13 +376,20 @@ class TaskStatusView(APIView):
                 task_result = result.result
 
                 if task_result and task_result.get("success"):
+                    session_id = task_result.get("session_id")
+                    if not self._validate_session_ownership(session_id, request.user):
+                        return Response(
+                            {"error": "Unauthorized access to this task"},
+                            status=status.HTTP_403_FORBIDDEN,
+                        )
+
                     return Response(
                         {
                             "message": "Task completed successfully",
                             "data": {
                                 "task_id": task_id,
                                 "task_status": "SUCCESS",
-                                "session_id": task_result.get("session_id"),
+                                "session_id": session_id,
                                 "type": task_result.get("type"),
                                 "response_message": task_result.get("response_message"),
                                 "suggestions": task_result.get("suggestions"),
@@ -387,7 +403,6 @@ class TaskStatusView(APIView):
                         status=status.HTTP_200_OK,
                     )
                 else:
-                    # Task completed but with error (e.g., quota exceeded)
                     error_code = (
                         "DAILY_QUOTA_EXCEEDED"
                         if task_result.get("daily_limit_reached")
@@ -465,3 +480,4 @@ class TaskStatusView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+

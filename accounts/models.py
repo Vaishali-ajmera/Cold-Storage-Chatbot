@@ -21,6 +21,8 @@ class User(AbstractUser):
         max_length=5, choices=LANGUAGE_CHOICES, default=DEFAULT_LANGUAGE
     )
     has_set_preferences = models.BooleanField(default=False)
+    phone_number = models.CharField(max_length=20, blank=True, null=True, unique=True)
+    is_sso_user = models.BooleanField(default=False)
 
     def __str__(self):
         return self.email or self.username

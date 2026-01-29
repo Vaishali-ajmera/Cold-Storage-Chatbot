@@ -326,6 +326,8 @@ class UserDetailAPIView(APIView):
             user = request.user
             data = request.data
 
+            old_language = user.preferred_language
+
             if "email" in data:
                 user.email = data["email"]
 
@@ -340,6 +342,39 @@ class UserDetailAPIView(APIView):
                 user.has_set_preferences = True
 
             user.save()
+
+            if "preferred_language" in data and data["preferred_language"] != old_language:
+                from usecase_engine.models import UserInput
+                from usecase_engine.utils import generate_localized_onboarding_content
+                from usecase_engine.constants import (
+                    TYPE_BUILD,
+                    TYPE_EXISTING,
+                    WELCOME_MESSAGE_BUILD,
+                    WELCOME_MESSAGE_EXISTING,
+                )
+
+                active_intake = UserInput.objects.filter(
+                    user=user, is_active=True
+                ).first()
+
+                if active_intake:
+                    if active_intake.user_choice == TYPE_BUILD:
+                        original_welcome = WELCOME_MESSAGE_BUILD
+                    elif active_intake.user_choice == TYPE_EXISTING:
+                        original_welcome = WELCOME_MESSAGE_EXISTING
+                    else:
+                        original_welcome = "Welcome! How can I help you today?"
+
+                    welcome_message, suggestions = generate_localized_onboarding_content(
+                        active_intake.user_choice,
+                        active_intake.intake_data,
+                        user.preferred_language,
+                        original_welcome,
+                    )
+
+                    active_intake.welcome_message = welcome_message
+                    active_intake.suggestions = suggestions
+                    active_intake.save(update_fields=["welcome_message", "suggestions"])
 
             serializer = UserSerializer(user)
             return Response(
