@@ -1,5 +1,7 @@
 import re
+
 from django.conf import settings
+
 
 def get_user_data(user):
     return {

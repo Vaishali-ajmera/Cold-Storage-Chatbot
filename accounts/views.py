@@ -328,15 +328,18 @@ class UserDetailAPIView(APIView):
 
             user.save()
 
-            if "preferred_language" in data and data["preferred_language"] != old_language:
-                from usecase_engine.models import UserInput
-                from usecase_engine.utils import generate_localized_onboarding_content
+            if (
+                "preferred_language" in data
+                and data["preferred_language"] != old_language
+            ):
                 from usecase_engine.constants import (
                     TYPE_BUILD,
                     TYPE_EXISTING,
                     WELCOME_MESSAGE_BUILD,
                     WELCOME_MESSAGE_EXISTING,
                 )
+                from usecase_engine.models import UserInput
+                from usecase_engine.utils import generate_localized_onboarding_content
 
                 active_intake = UserInput.objects.filter(
                     user=user, is_active=True
@@ -350,11 +353,13 @@ class UserDetailAPIView(APIView):
                     else:
                         original_welcome = "Welcome! How can I help you today?"
 
-                    welcome_message, suggestions = generate_localized_onboarding_content(
-                        active_intake.user_choice,
-                        active_intake.intake_data,
-                        user.preferred_language,
-                        original_welcome,
+                    welcome_message, suggestions = (
+                        generate_localized_onboarding_content(
+                            active_intake.user_choice,
+                            active_intake.intake_data,
+                            user.preferred_language,
+                            original_welcome,
+                        )
                     )
 
                     active_intake.welcome_message = welcome_message
@@ -374,4 +379,3 @@ class UserDetailAPIView(APIView):
                 {"error": f"Failed to update user: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-

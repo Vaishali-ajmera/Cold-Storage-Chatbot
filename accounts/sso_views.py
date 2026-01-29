@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.renders import UserRenderer
-from accounts.utils import get_user_data,phone_to_email
+from accounts.utils import get_user_data, phone_to_email
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -33,8 +33,8 @@ class SSOVerifyTokenAPIView(APIView):
 
         try:
             payload = jwt.decode(
-                token, 
-                settings.SSO_SECRET_KEY, 
+                token,
+                settings.SSO_SECRET_KEY,
                 algorithms=["HS256"],
             )
         except jwt.ExpiredSignatureError:

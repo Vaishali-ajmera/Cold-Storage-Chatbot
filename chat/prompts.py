@@ -44,10 +44,14 @@ def _get_config_instructions():
         instructions.append(f"LENGTH: {length_map[config.response_length]}")
 
     if config.additional_context and config.additional_context.strip():
-        instructions.append(f"\nADDITIONAL CONTEXT:\n{config.additional_context.strip()}")
+        instructions.append(
+            f"\nADDITIONAL CONTEXT:\n{config.additional_context.strip()}"
+        )
 
     if config.custom_instructions and config.custom_instructions.strip():
-        instructions.append(f"\nCUSTOM INSTRUCTIONS:\n{config.custom_instructions.strip()}")
+        instructions.append(
+            f"\nCUSTOM INSTRUCTIONS:\n{config.custom_instructions.strip()}"
+        )
 
     return "\n".join(instructions)
 

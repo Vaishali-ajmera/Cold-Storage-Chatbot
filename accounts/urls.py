@@ -37,4 +37,3 @@ urlpatterns = [
     path("settings/stats/", AdminStatsAPIView.as_view(), name="admin-stats"),
     path("sso/verify-token/", SSOVerifyTokenAPIView.as_view(), name="sso-verify-token"),
 ]
-

@@ -5,12 +5,12 @@ from django.db import models
 from django.utils import timezone
 
 from chat.constants import (
+    DEFAULT_MAX_DAILY_QUESTIONS,
     MESSAGE_TYPE_CHOICES,
     SENDER_BOT,
     SENDER_CHOICES,
     SESSION_ACTIVE,
     SESSION_STATUS_CHOICES,
-    DEFAULT_MAX_DAILY_QUESTIONS,
 )
 from usecase_engine.models import UserInput
 

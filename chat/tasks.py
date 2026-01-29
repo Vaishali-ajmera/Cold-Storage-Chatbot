@@ -2,11 +2,7 @@ import logging
 
 from celery import shared_task
 
-from chat.constants import (
-    MESSAGE_TYPE_USER_QUESTION,
-    SENDER_USER,
-    SESSION_ACTIVE,
-)
+from chat.constants import MESSAGE_TYPE_USER_QUESTION, SENDER_USER, SESSION_ACTIVE
 
 logger = logging.getLogger("chat.tasks")
 
@@ -44,6 +40,7 @@ def process_question_task(
         daily_quota = DailyQuestionQuota.get_or_create_today(session.user)
         if not daily_quota.can_ask_question():
             from chat.models import get_max_daily_questions
+
             max_questions = get_max_daily_questions()
             return {
                 "success": False,
