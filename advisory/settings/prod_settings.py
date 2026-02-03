@@ -26,16 +26,19 @@ DATABASES = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    "http://72.62.248.39:8007",
     "http://72.62.248.39",
 ]
 
-# CORS Configurationd
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS Configuration
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Allow credentials
 CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://72.62.248.39:8007",
+]
 
 STATIC_URL = "/static/"
 STATIC_ROOT = "/var/www/cold_storage_static"
