@@ -8,7 +8,7 @@ SECRET_KEY = "django-insecure-local-+p%rziio8*k4l05-v^3)zr+t+$13!$7-#v!2s^hi^6)s
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["*"]
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -36,7 +36,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Allow credentials
 CORS_ALLOW_CREDENTIALS = True
-
 
 
 # This would allow you to set this configuration
