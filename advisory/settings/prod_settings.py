@@ -6,7 +6,7 @@ from advisory.settings.base import *
 SECRET_KEY = "django-insecure-local-+p%rziio8*k4l05-v^3)zr+t+$13!$7-#v!2s^hi^6)s+i*rx("
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 
@@ -15,19 +15,20 @@ ALLOWED_HOSTS = ['*']
 
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'cold_storage_advisory',  
-        'USER': 'myuser',      
-        'PASSWORD': config('DB_PASSWORD'),  
-        'HOST': 'localhost',   
-        'PORT': '5432',       
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": config("DBNAME"),
+        "USER": config("DBUSER"),
+        "PASSWORD": config("DBPASSWORD"),
+        "HOST": config("DBHOST"),
+        "PORT": config("DBPORT"),  # Default PostgreSQL port
     }
 }
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "72.62.248.39",
 ]
 
 # CORS Configurationd
@@ -36,8 +37,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 # Allow credentials
 CORS_ALLOW_CREDENTIALS = True
 
-FRONTEND_URL = "http://localhost:3000"
-BACKEND_URL = "http://localhost:8000"
+
 
 # This would allow you to set this configuration
-#  export DJANGO_SETTINGS_MODULE=advisory.settings.local_settings
+#  export DJANGO_SETTINGS_MODULE=advisory.settings.prod_settings
