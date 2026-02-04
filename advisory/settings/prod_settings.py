@@ -28,6 +28,7 @@ DATABASES = {
 CORS_ALLOWED_ORIGINS = [
     "http://72.62.248.39:8007",
     "http://72.62.248.39",
+    "http://localhost:8000",
 ]
 
 # CORS Configuration
@@ -38,6 +39,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://72.62.248.39:8007",
+    "http://localhost:8000",
 ]
 
 STATIC_URL = "/static/"
@@ -51,9 +53,10 @@ CSRF_COOKIE_NAME = "cold_storage_csrftoken"
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 SECURE_SSL_REDIRECT = False
-CSRF_TRUSTED_ORIGINS = [
-    "http://72.62.248.39:8007",
-]
+
+# CSRF_TRUSTED_ORIGINS = [
+#     "http://72.62.248.39:8007",
+# ]
 
 # This would allow you to set this configuration
 #  export DJANGO_SETTINGS_MODULE=advisory.settings.prod_settings
