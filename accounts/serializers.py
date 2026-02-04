@@ -22,6 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
             "preferred_language",
             "has_set_preferences",
             "is_admin",
+            "is_sso_user"
         ]
         read_only_fields = ["id", "username", "has_set_preferences", "is_admin"]
 

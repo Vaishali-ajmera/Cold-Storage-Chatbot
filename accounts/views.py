@@ -335,9 +335,8 @@ class UserDetailAPIView(APIView):
                 from usecase_engine.constants import (
                     TYPE_BUILD,
                     TYPE_EXISTING,
-                    WELCOME_MESSAGE_BUILD,
-                    WELCOME_MESSAGE_EXISTING,
                 )
+                from chat.constants import WELCOME_MESSAGE_BUILD, WELCOME_MESSAGE_EXISTING
                 from usecase_engine.models import UserInput
                 from usecase_engine.utils import generate_localized_onboarding_content
 
