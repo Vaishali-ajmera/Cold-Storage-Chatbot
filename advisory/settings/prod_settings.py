@@ -28,7 +28,7 @@ DATABASES = {
 CORS_ALLOWED_ORIGINS = [
     "http://72.62.248.39:8007",
     "http://72.62.248.39",
-    "http://localhost:8000",
+    "http://localhost:3000",
 ]
 
 # CORS Configuration
@@ -39,7 +39,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://72.62.248.39:8007",
-    "http://localhost:8000",
+    "http://localhost:3000",
 ]
 
 STATIC_URL = "/static/"
